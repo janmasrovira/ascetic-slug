@@ -31,7 +31,7 @@ list_pages = false
 twitter_card = false
 enable_search = true
 header_nav = [
-  { url = "/", name_en = "home/" },
-  { url = "/blog", name_en = "blog/" },
-  { url = "/project", name_en = "projects/" }
+  { url = "/", name_en = "[home]" },
+  { url = "/blog", name_en = "[blog]" },
+  { url = "/project", name_en = "[projects]" }
 ]
