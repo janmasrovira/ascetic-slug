@@ -36,7 +36,7 @@ You can find all related code to what I will present in this [gitlab repository]
 In order to get close to dependent types we need the help of some GHC extensions.
 If you want to follow along, make sure to have the following extensions
 enabled in ghci. I will comment on some of them when they become relevant to
-the code I&rsquo;m showing. Note that each extension links to the corresponding GHC
+the code I'm showing. Note that each extension links to the corresponding GHC
 manual page.
 
 -   [`GADTs`](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/gadt.html). Allow use of Generalised Algebraic Data Types (GADTs).
@@ -50,8 +50,6 @@ manual page.
     type-checker non-termination.
 
 
-<a id="org9cbaf77"></a>
-
 # Equality on types
 
 All proofs which I will present in this blog are proofs of equality. In fact,
@@ -61,15 +59,19 @@ $t₁,…,tₘ,r,s$ are types. So a first obvious step should be to define a typ
 Haskell which expresses type equality (according to the rules of GHC). We
 should agree that a the following header is a good place to start.
 
-    data Equal a b where
-       ...
+```haskell
+data Equal a b where
+   ...
+```
 
 Now we should provide a constructor for this datatype. Of course, the
 constructor should be a witness that `a` and `b` are equal.
 So we can define the desired constructor like this:
 
-    data Equal a b where
-      Witness :: (a ~ b) => Equal a b
+```haskell
+data Equal a b where
+  Witness :: (a ~ b) => Equal a b
+```
 
 Recall that the constraint `a ~ b` means precisely what we want. Namely, that
 `a` and `b` are equal types according to GHC.
@@ -77,10 +79,12 @@ Recall that the constraint `a ~ b` means precisely what we want. Namely, that
 However, we are going to use an alternative definition, which is slightly
 simpler and is already defined in [`base:Data.Type.Equality`](https://hackage.haskell.org/package/base-4.15.0.0/docs/Data-Type-Equality.html):
 
+```haskell
     data a :~: b where
       Refl :: a :~: a
+```
 
-Don&rsquo;t get confused by the infix notation of `:~:`. It serves the same purpose
+Don't get confused by the infix notation of `:~:`. It serves the same purpose
 as `Equal`, but with infix notation (see [`TypeOperators`](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/type_operators.html#extension-TypeOperators)). The constructor is
 named `Refl` for *Reflexivity*.
 
@@ -89,9 +93,11 @@ defined above is symmetric. Recall that in mathematics we say that a relation
 $R$ is symmetric iff $∀x∀y(xRy⇒yRx)$.
 
 Our next job is to find a type which faithfully represents the symmetry
-proposition. Let&rsquo;s use the following type.
+proposition. Let's use the following type.
 
-    sym :: (x :~: y) -> (y :~: x)
+```haskell
+sym :: (x :~: y) -> (y :~: x)
+```
 
 First we need to convince ourselves that the type `(x :~: y) -> (y :~: x)`
 faithfully represents a proposition stating the property of symmetry. In fact
@@ -99,14 +105,12 @@ if we use explicit quantification for `x` and `y` and we interpret the
 function type (`->`) as an implication, it looks exactly like the mathematical
 statement:
 
-$$ ∀x∀y(xRy⇒yRx)$$
+\\[ ∀x∀y(xRy⇒yRx)
+\\]
 
-<div class="org-center">
-<div class="org-src-container">
-<pre class="src src-haskell">  forall x y<span style="color: #dcaeea;">.</span> (x <span style="color: #ECBE7B;">:~:</span> y) <span style="color: #dcaeea;">-&gt;</span> (y <span style="color: #ECBE7B;">:~:</span> x)
-</pre>
-</div>
-</div>
+```haskell
+forall x y. (x :~: y) -> (y :~: x)
+```
 
 Now, if we can find a Haskell term which has the above type we will have a
 term such that given any `x` and `y` and a proof of `x :~: y`, will return
@@ -119,37 +123,47 @@ this [Stanford Encyclopedia article](https://plato.stanford.edu/entries/intuitio
 On we go to find a suitable term (proof)! We see that `(x :~: y) -> (y :~: x)`
 is a function type with one argument, so a good place to start would be this:
 
-    sym :: (x :~: y) -> (y :~: x)
-    sym p = _
+```haskell
+sym :: (x :~: y) -> (y :~: x)
+sym p = _
+```
 
 If we load this into ghci it will tell us that it has found a hole:
 
-    Found hole: _ :: y :~: x
+```
+Found hole: _ :: y :~: x
+```
 
 How can we fill this hole? Well, the only way to build something of type `y
   :~: x` is by using the constructor `Refl`, but doing that would give us either
 `x :~: x` or `y :~: y`, which is not what we want. So we are only left with
 the option to pattern match against `p`. Here the type of the constructor
-`Refl` will play a crucial role. Let&rsquo;s proceed by asking ghci about its type.
+`Refl` will play a crucial role. Let's proceed by asking ghci about its type.
 
-    ghci> :t Refl
-    ghci> Refl :: forall k (a :: k). a :~: a
+```
+ghci> :t Refl
+ghci> Refl :: forall k (a :: k). a :~: a
+```
 
 What this says is: For any kind `k` and for any type `a` of kind `k` we have a
 term of type `a :~: a`. We can think of a kind as the type of a type. I will
 go back to types and kinds later in this section.
 
-Let&rsquo;s reload the code after replacing `p` by `Refl`. Note
+Let's reload the code after replacing `p` by `Refl`. Note
 that I write `p@Refl` so it is easier for me to refer to this specific `Refl`
 in the text, but we could simply drop `p@` to the same effect.
 
-    sym :: (x :~: y) -> (y :~: x)
-    sym p@Refl = _
+```haskell
+sym :: (x :~: y) -> (y :~: x)
+sym p@Refl = _
+```
 
 Now we get that there is still a hole, but now it has type `x :~: x` instead
 of `y :~: x`.
 
-    Found hole: _ :: x :~: x
+```
+Found hole: _ :: x :~: x
+```
 
 We see that because of pattern matching and the type of `Refl`, GHC has
 unified the type variables `x` and `y`. Why? well, we know that before pattern
@@ -160,11 +174,13 @@ Filling the hole and thus finishing the proof is trivial! We only need to
 return the `Refl` constructor, which is a suitable term of the desired type `x
   :~: x`.
 
-    sym :: (x :~: y) -> (y :~: x)
-    sym Refl = Refl
+```haskell
+sym :: (x :~: y) -> (y :~: x)
+sym Refl = Refl
+```
 
 Yay! we finished our first proof! However, there is one critical condition for
-a proof that we haven&rsquo;t yet commented: termination. In the case of `sym`,
+a proof that we haven't yet commented: termination. In the case of `sym`,
 it obviously terminates for any input, since we just return the constructor
 `Refl`. However, as proofs get more complicated and we need to perform
 induction (as we will see in the TODO LINK natural numbers section), it is easy to end up
@@ -174,8 +190,10 @@ proof. Unfortunately, we are on our own because GHC does not perform any kind
 of termination checking for terms. As an example of a well typed but
 non-terminating term consider the following definition:
 
-    anyProof :: forall a. a
-    anyProof = anyProof
+```haskell
+anyProof :: forall a. a
+anyProof = anyProof
+```
 
 Of course, we should always be very careful not to introduce a non-terminating
 (pseudo)proof, as the proof may be accepted by GHC and will lead us to believe
@@ -185,7 +203,9 @@ As a simple exercise, I propose that you try to prove that `:~:` is a
 transitive relation. In Haskell terms, this means that you ought to find a
 suitable definition for this type signature.
 
-    trans :: (x :~: y) -> (y :~: z) -> (x :~: z)
+```haskell
+trans :: (x :~: y) -> (y :~: z) -> (x :~: z)
+```
 
 *Hint: The proof is really similar to the proof of `sym`*. After you have
 proven this, you will have proven that `:~:` is symmetric, transitive and
@@ -200,12 +220,10 @@ proof in Haskell.
 2.  Find a term that has that type. GHC makes sure that this step is correct
     by type checking the term.
 3.  Make sure (outside of GHC/in our meta reasoning) that the given term in the
-    previous step terminates for any input. If it doesn&rsquo;t, we do not have a
+    previous step terminates for any input. If it doesn't, we do not have a
     valid proof.
 4.  Feel good.
 
-
-<a id="orgaa53d09"></a>
 
 ## A note on types and kinds
 
@@ -217,36 +235,44 @@ If we inspect closely the type of `sym :: forall x y. (x :~: y) -> (y :~:
 anywhere, yet we can use them? The answer lies in the fact that GHC types are
 not fully explicit most of the time. Consider the identity function type:
 
-    id :: a -> a
+```haskell
+id :: a -> a
+```
 
 We could have raised a similar question by looking at this type. If we rewrite
 the previous type more explicitly, we would have:
 
-    id :: forall a. a -> a
+```haskell
+id :: forall a. a -> a
+```
 
 We see that we universally quantify a type variable `a`. But still this is not
 fully explicit. One could ask: What is the type of `a`? Or in GHC terms, what
-is the kind of `a`? Let&rsquo;s rewrite the type to make it even more explicit.
+is the kind of `a`? Let's rewrite the type to make it even more explicit.
 
-    id :: forall k (a :: k). a -> a
+```haskell
+id :: forall k (a :: k). a -> a
+```
 
 Ok, we have solved the problem for `a`. Now we know that `a` has kind `k`.
 But what is the kind of `k`? We need to make it more explicit one last time.
 
-    -- Type is imported from Data.Kind
-    id :: forall (k :: Type) (a :: k). a -> a
+```haskell
+-- Type is imported from Data.Kind
+id :: forall (k :: Type) (a :: k). a -> a
+```
 
 But how can it be that type of a kind `k` is `Type`? This is because in GHC
 we have the axiom `Type :: Type`. This may raise some eyebrows since in the
 field of logic typing relations which include at least a reflexive element,
 such as `Type :: Type`, are well known to lead to inconsistent logics, and
 thus are undesirable (if this topic is intriguing to you, I suggest that you
-read the article on the [Russell&rsquo;s Paradox](https://plato.stanford.edu/entries/russell-paradox/) in the Stanford Encyclopedia).
+read the article on the [Russell's Paradox](https://plato.stanford.edu/entries/russell-paradox/) in the Stanford Encyclopedia).
 However, GHC allows `Type :: Type` because it has certain advantages. Moreover,
 inconsistencies are present even without it. This makes sense because GHC is
 not meant to be used as a proof assistant. In the paper [System FC with
 Explicit Kind Equality](https://www.seas.upenn.edu/~sweirich/papers/fckinds.pdf), Weirich, Hsu and Eisenberg argue that having the
-`Type :: Type` axiom does not break GHC&rsquo;s type system.
+`Type :: Type` axiom does not break GHC's type system.
 
 If you want to know how the paradox has been avoided in a programming
 language with dependent types, I suggest that you look into the Agda
@@ -263,28 +289,28 @@ If you wish to know more, I suggest some references:
 -   Proposal for [unlifted data types](https://gitlab.haskell.org/ghc/ghc/-/wikis/unlifted-data-types).
 
 
-<a id="org17e34ad"></a>
-
 # Proofs on natural numbers
-
-<a id="sec:naturals"></a>
 
 Finally something that is more tangible: natural numbers. As we know, a
 natural numbers are the elements of the infinite sequence $0,1,2,3,…$. We will
 begin by providing a Haskell inductive definition for them.
 
-    data Nat where
-      Zero :: Nat
-      Suc :: Nat -> Nat
+```haskell
+data Nat where
+  Zero :: Nat
+  Suc :: Nat -> Nat
+```
 
 We can define particular naturals as expected:
 
-    one :: Nat
-    one = Suc Zero
-    
-    two :: Nat
-    two = Suc one
-    ...
+```haskell
+one :: Nat
+one = Suc Zero
+
+two :: Nat
+two = Suc one
+...
+```
 
 Say that we want to prove that `one + one = two`. It should be pretty
 straightforward right? Well, we have seen that we need to use types to express
@@ -298,54 +324,68 @@ Likewise, the extension promotes constructors, such as `Zero` and
 constructor we should prefix it with an apostrophe `'`. Now we can define
 naturals on the type level thus:
 
-    type One = 'Suc 'Zero
-    type Two = 'Suc One
+```haskell
+type One = 'Suc 'Zero
+type Two = 'Suc One
+```
 
 The first part of the problem is solved. We now need to define addition on the
 promoted kind `Nat`. We can do so with the help of the [`TypeFamilies`](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/type_families.html)
 extension. With this extension we can define *type families*, which
 approximately are Haskell functions on types.
 
-First let&rsquo;s define addition on terms as we would normally do. This is only to
+First let's define addition on terms as we would normally do. This is only to
 have a point of reference.
 
-    (+) :: Nat -> Nat -> Nat where
-    Zero + b = b
-    (Suc a) + b = Suc (a + b)
+```haskell
+(+) :: Nat -> Nat -> Nat where
+Zero + b = b
+(Suc a) + b = Suc (a + b)
+```
 
 And now see how we can translate the previous definition to type families.
 
-    type family (a :: Nat) :+: (b :: Nat) :: Nat where
-     'Zero :+: b = b
-     'Suc a :+: b = 'Suc (a :+: b)
+```haskell
+type family (a :: Nat) :+: (b :: Nat) :: Nat where
+ 'Zero :+: b = b
+ 'Suc a :+: b = 'Suc (a :+: b)
+```
 
 One can observe that both definitions look quite alike. In fact, they would be
 exactly the same definition if we had full dependent types in GHC.
 
-Let&rsquo;s try an example. Notice that the we need a `!` in `:k!` in order to ask
+Let's try an example. Notice that the we need a `!` in `:k!` in order to ask
 ghci to give us the normalized type.
 
-    ghci> :k! ('Suc 'Zero) :+: ('Suc 'Zero)
-    ghci> ('Suc 'Zero) :+: ('Suc 'Zero) :: Nat
-    ghci> = 'Suc ('Suc 'Zero)
+```
+ghci> :k! ('Suc 'Zero) :+: ('Suc 'Zero)
+ghci> ('Suc 'Zero) :+: ('Suc 'Zero) :: Nat
+ghci> = 'Suc ('Suc 'Zero)
+```
 
 Neat! We are finally ready to express in a type the property `one + one =
   two` and prove it.
 
-    onePlusOne :: (One :+: One) :~: Two
-    onePlusOne = Refl
+```haskell
+onePlusOne :: (One :+: One) :~: Two
+onePlusOne = Refl
+```
 
 It suffices to use reflection since both types `One :+: One` and `Two`
 normalize to `'Suc ('Suc 'Zero)`.
 
-Let&rsquo;s prove another property: `n + zero = n`.
+Let's prove another property: `n + zero = n`.
 
-    nPlusZero :: (n :+: 'Zero) :~: n
-    nPlusZero = Refl
+```haskell
+nPlusZero :: (n :+: 'Zero) :~: n
+nPlusZero = Refl
+```
 
 But now we get an error!
 
-    Couldn't match type ‘n’ with ‘n :+: 'Zero’
+```
+Couldn't match type ‘n’ with ‘n :+: 'Zero’
+```
 
 The problem is that `n :+: 'Zero` cannot be normalized further. This is
 because when we defined `:+:` we pattern matched the left argument, but now we
@@ -356,18 +396,19 @@ need to figure something out.
 The strategy is to define a data type which will serve as a bridge between the
 terms universe and the types universe.
 
-    data SNat (n :: Nat) where
-      SZero :: SNat 'Zero
-      SSuc :: SNat n -> SNat ('Suc n)
+```haskell
+data SNat (n :: Nat) where
+  SZero :: SNat 'Zero
+  SSuc :: SNat n -> SNat ('Suc n)
+```
 
 The new data type `SNat` which we just defined has the same structure as a
-`Nat`, but it is indexed by a `Nat` on the type level. Note that the `n` in
-the first line is **not** a term of type `Nat`. Instead, `n` is a type variable
-of kind `Nat`. With the help of [`GADTs`](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/gadt.html), we can use the promoted constructors
-`'Zero` and `'Suc` to create the desired link between terms and types. The
-following theorem makes such a link explicit.
-
-<div class="alert alert-note"><div>
+`Nat`, but it is indexed by a `Nat` on the type level. Note that the `n` in the
+first line is **not** a term of type `Nat`. Instead, `n` is a type variable of
+kind `Nat`. With the help of
+[`GADTs`](https://ghc.gitlab.haskell.org/ghc/doc/users_guide/exts/gadt.html), we
+can use the promoted constructors `'Zero` and `'Suc` to create the desired link
+between terms and types. The following theorem makes such a link explicit.
 
 **Theorem**. *For any type `n` of kind `Nat`, the type `SNat n` has exactly one term*.
 
@@ -378,7 +419,7 @@ We prove it by induction on `n`.
     By definition `SZero :: SNat 'Zero`. To see that `SZero` is the only term of
     type `SNat 'Zero`, assume that there is a term `b :: SNat 'Zero`. We
     continue by cases on `b`. If `b` is `SZero` we are done. Otherwise `b` is of
-    the form `SSuc _`, but then `b`&rsquo;s type must be of the form `SNat ('Suc _)`,
+    the form `SSuc _`, but then `b`'s type must be of the form `SNat ('Suc _)`,
     which is a contradiction.
 -   Inductive case `n` = `'Suc m`.
     
@@ -390,8 +431,6 @@ We prove it by induction on `n`.
     
     Qed.
 
-</div></div>
-
 Because of the previous property we call the type `SNat` a *singleton type*.
 If you want a more extensive introduction to singleton types, I recommend [this
 blog](https://blog.jle.im/entry/introduction-to-singletons-1.html) by Justin Le.
@@ -399,50 +438,57 @@ blog](https://blog.jle.im/entry/introduction-to-singletons-1.html) by Justin Le.
 We can now use the singleton type `SNat` to pattern match on types of kind
 `Nat`.
 
-    nPlusZero :: SNat n -> (n :+: 'Zero) :~: n
-    nPlusZero SZero = _
-    nPlusZero (SSuc m) = _
+```haskell
+nPlusZero :: SNat n -> (n :+: 'Zero) :~: n
+nPlusZero SZero = _
+nPlusZero (SSuc m) = _
+```
 
 After loading the previous code into ghci we get the following information:
 
 -   For the base case (first hole):
-    
-        Found hole: _ :: 'Zero :~: 'Zero
-    
+    ```
+    Found hole: _ :: 'Zero :~: 'Zero
+    ```     
     This hole can be trivially proven with `Refl`.
 -   For the inductive case (second hole):
-    
-        Found hole: _ :: 'Suc (n1 :+: 'Zero) :~: 'Suc n1
+    ```
+    Found hole: _ :: 'Suc (n1 :+: 'Zero) :~: 'Suc n1
+    ```
     
     We see that we need to prove an equality of the form `'Suc a :~: 'Suc b`,
-    and this equality is implied by `a :~: b`. Let&rsquo;s prove this fact as an
+    and this equality is implied by `a :~: b`. Let's prove this fact as an
     auxiliary lemma.
-    
-        congSuc :: a :~: b -> 'Suc a :~: 'Suc b
-        congSuc Refl = Refl
+    ```haskell
+    congSuc :: a :~: b -> 'Suc a :~: 'Suc b
+    congSuc Refl = Refl
+    ```
     
     We see that `congSuc` is a very simple lemma that can be proved in the same
     way we proved `sym`.
     
     In order to use the previous lemma we only need to apply it as a regular
     function.
-    
-        nPlusZero :: SNat n -> (n :+: 'Zero) :~: n
-        nPlusZero SZero = Refl
-        nPlusZero (SSuc m) = congSuc _
+    ```haskell
+    nPlusZero :: SNat n -> (n :+: 'Zero) :~: n
+    nPlusZero SZero = Refl
+    nPlusZero (SSuc m) = congSuc _
+    ```
     
     After applying `congSuc` the hole becomes:
-    
-        Found hole: _ :: (n1 :+: 'Zero) :~: n1
+    ```
+    Found hole: _ :: (n1 :+: 'Zero) :~: n1
+    ```
     
     It worked, the hole type became simpler! In fact, it looks much like the
     property that we wanted to prove initially. This is often telling us that we
     need to apply the induction hypothesis. Applying the induction hypothesis is
     as simple as doing a recursive call to the theorem that we are proving.
-    
-        nPlusZero :: SNat n -> (n :+: 'Zero) :~: n
-        nPlusZero SZero = Refl
-        nPlusZero (SSuc m) = congSuc (nPlusZero m)
+    ```haskell
+    nPlusZero :: SNat n -> (n :+: 'Zero) :~: n
+    nPlusZero SZero = Refl
+    nPlusZero (SSuc m) = congSuc (nPlusZero m)
+    ```
 
 We have finished our first proof by induction! Now imagine that we want to use
 the previous theorem in another proof. In particular, imagine that we need to
@@ -451,20 +497,22 @@ that the strategy should be to instantiate the `n` in the lemma `nPlusZero` as
 `a :+: b`, but then we should provide an argument of type `SNat (a :+: b)`.
 We can achieve that by implementing addition for the type `SNat` as follows.
 
-    (.+.) :: SNat a -> SNat b -> SNat (a :+: b)
-    SZero .+. b    = b
-    SSuc a .+. b = SSuc (a .+. b)
+```haskell
+(.+.) :: SNat a -> SNat b -> SNat (a :+: b)
+SZero .+. b    = b
+SSuc a .+. b = SSuc (a .+. b)
+```
 
 Finally we can use the theorem `nPlusZero` thus:
 
-    someThm :: SNat a -> SNat b -> (a :+: b) :+: 'Zero
-    someThm a b = nPlusZero (a .+. b)
+```haskell
+someThm :: SNat a -> SNat b -> (a :+: b) :+: 'Zero
+someThm a b = nPlusZero (a .+. b)
+```
 
 At this point I have given you
 enough tools so that you can start writing your own proofs.
 
-
-<a id="org6c88024"></a>
 
 ## Exercises
 
@@ -555,25 +603,25 @@ More exercises for lists.
 You will need some common functions on lists on the type level.
 
 ```haskell
-    type family Length (l :: [*]) :: Nat where
-      Length '[] = 'Zero
-      Length (_':r) = 'Suc (Length r)
-    
-    type family (a :: [*]) :++: (b :: [*]) :: [*] where
-      '[] :++: b = b
-      (a ': as) :++: b = a : (as :++: b)
-    
-    type family Reverse (a :: [*]) :: [*] where
-      Reverse '[] = '[]
-      Reverse (a ': as) = Reverse as :++: '[a]
+type family Length (l :: [*]) :: Nat where
+  Length '[] = 'Zero
+  Length (_':r) = 'Suc (Length r)
+
+type family (a :: [*]) :++: (b :: [*]) :: [*] where
+  '[] :++: b = b
+  (a ': as) :++: b = a : (as :++: b)
+
+type family Reverse (a :: [*]) :: [*] where
+  Reverse '[] = '[]
+  Reverse (a ': as) = Reverse as :++: '[a]
 ```
 
 A singleton list type can be defined thus:
 
 ```haskell
-    data HList (l :: [*]) :: * where
-      HNil :: HList '[]
-      HCons :: t -> HList l -> HList (t ': l)
+data HList (l :: [*]) :: * where
+  HNil :: HList '[]
+  HCons :: t -> HList l -> HList (t ': l)
 ```
 
 List of exercises.
@@ -633,8 +681,6 @@ of this blog. For that, I recommend the [`Readme` of the `singletons` library](h
 and (again) [this blog](https://blog.jle.im/entry/introduction-to-singletons-1.html) by Justin Le.
 
 
-<a id="org155cdd1"></a>
-
 # Useful references
 
 If you want to know more or you want different takes on this topic, I would
@@ -644,7 +690,7 @@ suggest that you look into these references.
 -   [Tweag youtube channel](https://www.youtube.com/channel/UCI1Z201n-8OelkSg0DVOsng) featuring Richard Eisenberg.
 -   [Basic Type Level Programming in Haskell](https://www.parsonsmatt.org/2017/04/26/basic_type_level_programming_in_haskell.html) by Matt Parsons.
 -   [nLab: propositions as types](https://ncatlab.org/nlab/show/propositions+as+types) (not Haskell, more theoretical).
--   If you know of a nice reference which is missing here, let me know and I&rsquo;ll
+-   If you know of a nice reference which is missing here, let me know and I'll
     add it.
 
 
