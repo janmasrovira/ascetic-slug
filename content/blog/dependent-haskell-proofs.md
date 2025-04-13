@@ -23,13 +23,14 @@ on your side.
 dependent types, however, as we will see, it has some features that allow us to
 get pretty close to them. If you are looking for a language with full dependent
 types I suggest that you look into [Agda](https://github.com/agda/agda) or
-[Lean](https://lean-lang.org/). In this TODO LINK EDSL other blog I present an
+[Lean](https://lean-lang.org/). In this [other blog](../hilbert-edsl) I present an
 Agda implementation of a type safe domain specific language to write Hilbert
 style proofs. Also, GHC should *not* be used as a serious proof assistant,
 because, as we will see in this blog, it is very easy to prove false statements
 in it.
 
-You can find all related code to what I will present in this [gitlab repository](https://gitlab.com/janmasrovira/dependent-haskell ).
+You can find all related code to what I will present in this [gitlab
+repository](https://gitlab.com/janmasrovira/dependent-haskell).
 
 # Extensions
 
@@ -54,7 +55,12 @@ manual page.
 
 All proofs which I will present in this blog are proofs of equality. In fact,
 we will only show theorems which can be expressed in a formula of the form
-$$∀x₁…∀xₙ(t₁ ⇒ … ⇒ tₘ ⇒ r = s),$$ where $xᵢ$ are type variables and
+
+\\[
+∀x₁…∀xₙ(t₁ ⇒ … ⇒ tₘ ⇒ r = s),
+\\]
+
+where $xᵢ$ are type variables and
 $t₁,…,tₘ,r,s$ are types. So a first obvious step should be to define a type in
 Haskell which expresses type equality (according to the rules of GHC). We
 should agree that a the following header is a good place to start.
@@ -183,7 +189,7 @@ Yay! we finished our first proof! However, there is one critical condition for
 a proof that we haven't yet commented: termination. In the case of `sym`,
 it obviously terminates for any input, since we just return the constructor
 `Refl`. However, as proofs get more complicated and we need to perform
-induction (as we will see in the TODO LINK natural numbers section), it is easy to end up
+induction (as we will see in the [natural numbers section](#proofs-on-natural-numbers)), it is easy to end up
 writing a well typed term that will not terminate on some inputs. If a term
 does not terminate on some inputs, then it obviously cannot be taken as a
 proof. Unfortunately, we are on our own because GHC does not perform any kind
@@ -517,9 +523,12 @@ enough tools so that you can start writing your own proofs.
 ## Exercises
 
 Below I provide a list of theorems that you may want to prove as practice. If
-you get stuck you can refer to my solutions in [this repository](https://gitlab.com/janmasrovira/dependent-haskell), specifically
-[this file](https://gitlab.com/janmasrovira/dependent-haskell/-/blob/master/src/Nats.hs). I wrote these solutions about 3 years ago when I was still a complete
-novice at writing proofs. So it is likely that you will find better proofs.
+you get stuck you can refer to my solutions in [this
+repository](https://gitlab.com/janmasrovira/dependent-haskell), specifically
+[this
+file](https://gitlab.com/janmasrovira/dependent-haskell/-/blob/master/src/Nats.hs).
+I wrote these solutions about 3 years ago when I was still a complete novice at
+writing proofs. So it is likely that you will find better proofs.
 
 In order to solve the exercises you will need the following definitions.
 
