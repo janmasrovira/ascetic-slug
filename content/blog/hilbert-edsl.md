@@ -1,6 +1,8 @@
 +++
 title = "An Agda eDSL for well-typed Hilbert style proofs"
 date = 2019-05-19
+[extra]
+toc = true
 +++
 
 I present an Agda eDSL for writing Hilbert style proofs for logic $K$.
@@ -170,8 +172,6 @@ particular it can be empty.
 This concludes the overview of the language features.
 
 
-<a id="org6d4f77a"></a>
-
 # Implementation tour
 
 We start by defining the syntax of formulas. We define variables to be
@@ -230,8 +230,6 @@ no need to execute any code, just type check it (as is always the case when
 using Agda as a proof checker).
 
 
-<a id="org0a033f9"></a>
-
 ## A sketch of the eDSL
 
 We want a language as close to the paper-like syntax showed above as
@@ -264,8 +262,6 @@ it. We call this instruction `Begin` and it works the same as `By` with the
 exception that it can only be used as the first instruction.
 
 
-<a id="org1d1e13b"></a>
-
 ## Highlights
 
 We face the following challenges.
@@ -277,8 +273,6 @@ We face the following challenges.
     they reference the appropriate formulas.
 3.  **Compilation**. We need to translate nice proofs into primitive proofs.
 
-
-<a id="org30ecb07"></a>
 
 ### Numbering
 
@@ -330,8 +324,6 @@ With the previous solution in hand, it is easy to imagine how we can
 incorporate the same idea into our language.
 
 
-<a id="org28a7829"></a>
-
 ### Proper references
 
 Let&rsquo;s focus on the case of modus ponens (necessitation works analogously).
@@ -369,8 +361,6 @@ Now we can write:
 And then each proof object is implicitly embedded in the natural literal `0, 1`.
 
 
-<a id="org2e7d898"></a>
-
 ### Compilation
 
 It is hard to highlight a specific part over the others for the compilation
@@ -378,8 +368,6 @@ process. Compilation is mostly about fiddling with types and proof objects
 to get the desired translation. If you are interested in this part I suggest
 you look at the [code](https://gitlab.com/snippets/1858322) directly.
 
-
-<a id="orgacc650a"></a>
 
 ## Conclusion
 

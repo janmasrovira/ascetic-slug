@@ -1,6 +1,8 @@
 +++
 title = "Using dependent types to write proofs in Haskell"
 date = 2021-06-02
+[extra]
+toc = true
 +++
 
 **Target audience**: This blog is meant for intermediate/advanced Haskell
