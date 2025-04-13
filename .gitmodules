@@ -1,0 +1,3 @@
+[submodule "themes/anemone"]
+	path = themes/anemone
+	url = git@github.com:janmasrovira/anemone.git
