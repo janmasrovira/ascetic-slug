@@ -1,7 +1,7 @@
 base_url = "https://github.com/janmasrovira/hermes"
 theme = "hermes"
-title = "ascetic slug"
-description = "This is an example description"
+title = "Ascetic Slug"
+description = "Programming blog"
 generate_feeds = true
 compile_sass = true
 minify_html = true
@@ -9,7 +9,7 @@ taxonomies = [{ name = "tags" }]
 
 [markdown]
 highlight_code = true
-highlight_theme = "ayu-light"
+highlight_theme = "kronuz"
 
 [extra]
 toc = true
