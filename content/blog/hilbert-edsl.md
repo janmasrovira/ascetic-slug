@@ -5,7 +5,7 @@ date = 2019-05-19
 toc = true
 +++
 
-I present an Agda eDSL for writing Hilbert style proofs for logic $K$.
+I present an Agda eDSL for writing Hilbert style proofs for logic $𝑲$.
 
 This blog consists of two main parts. The first part presents the language and
 some examples. The second offers some insight into the key parts of the
