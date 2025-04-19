@@ -1,4 +1,4 @@
-name: Zola Build Check
+name: Zola Build
 
 on:
   pull_request:
