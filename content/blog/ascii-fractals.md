@@ -1,10 +1,16 @@
 +++
 title = "ASCII fractals in Haskell"
 date = 2018-02-20
+
+[taxonomies]
+tags=["Haskell"]
+
+[extra]
+toc = false
 +++
 
 Getting hypnotized by the shape of a fractal is certainly fascinating. In this
-blog, we will write a haskell program that creates fractals from a base pattern.
+blog, we will write a Haskell program that creates fractals from a base pattern.
 The recursive nature of the fractals allow a simple implementation in haskell.
 In case you don't know what a fractal is, I invite you to take a look at the
 [Wikipedia page](https://en.wikipedia.org/wiki/Fractal).

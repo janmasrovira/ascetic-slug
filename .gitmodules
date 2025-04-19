@@ -1,3 +1,6 @@
 [submodule "themes/anemone"]
 	path = themes/anemone
 	url = git@github.com:janmasrovira/anemone.git
+[submodule "themes/hermes"]
+	path = themes/hermes
+	url = git@github.com:janmasrovira/hermes.git
