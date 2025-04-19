@@ -88,8 +88,8 @@ However, we are going to use an alternative definition, which is slightly
 simpler and is already defined in [`base:Data.Type.Equality`](https://hackage.haskell.org/package/base-4.15.0.0/docs/Data-Type-Equality.html):
 
 ```haskell
-    data a :~: b where
-      Refl :: a :~: a
+data a :~: b where
+  Refl :: a :~: a
 ```
 
 Don't get confused by the infix notation of `:~:`. It serves the same purpose

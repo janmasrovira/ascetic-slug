@@ -8,8 +8,7 @@ minify_html = true
 taxonomies = [{ name = "tags" }]
 
 [markdown]
-highlight_code = true
-highlight_theme = "kronuz"
+highlight_code = false
 
 [extra]
 favicon = "/icon/favicon.png"
@@ -20,15 +19,15 @@ repo_url = "https://github.com/janmasrovira/hermes/tree/main/content/"
 katex_version = "0.16.22"
 
 menu = [
+    { name = "[home]", url = "/", weight = 2 },
     { name = "[blog]", url = "/blog", weight = 1 },
-    { name = "[projects]", url = "/projects", weight = 2 },
 ]
 
 socials = [
     { name = "mail", url = "mailto:janmasrovira@gmail.com", icon = "email" },
     { name = "github", url = "https://github.com/janmasrovira/", icon = "github" },
     { name = "gitlab", url = "https://gitlab.com/janmasrovira/", icon = "gitlab" },
-    { name = "LinkedIn", url = "https://linkedin.com/in/jan-mas-rovira", icon = "linkedin" },
+    { name = "linkedin", url = "https://linkedin.com/in/jan-mas-rovira", icon = "linkedin" },
 ]
 
 stylesheets = [
