@@ -1,0 +1,28 @@
+name: Zola Build Check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+env:
+  ZOLA_VERSION: 0.20.0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install Zola
+        uses: taiki-e/install-action@v2
+        with:
+          tool: zola@${{ env.ZOLA_VERSION }}
+
+      - name: Run zola build
+        run: zola build
