@@ -1,4 +1,4 @@
 # Readme
 
-The `publish` branch is deployed.
+Source code for my personal blog.
 
