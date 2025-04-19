@@ -19,4 +19,11 @@ jobs:
       - uses: ./.github/workflows/get-zola
 
       - name: Run zola build
+        id: build
         run: zola build
+
+      - name: Upload static files as artifact
+        id: upload-artifact
+        uses: actions/upload-pages-artifact@v3 # or specific "vX.X.X" version tag for this action
+        with:
+          path: public
