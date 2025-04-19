@@ -3,8 +3,9 @@ name: Install Zola
 on:
   workflow_call:
 
-env:
-  ZOLA_VERSION: 0.20.0
+# Due to some bug I can't use env in a reuisable job: https://github.com/actions/runner/issues/2372
+# env:
+#   ZOLA_VERSION: 0.20.0
 
 jobs:
   install:
@@ -14,4 +15,4 @@ jobs:
       - name: Install Zola
         uses: taiki-e/install-action@v2
         with:
-          tool: zola@${{ env.ZOLA_VERSION }}
+          tool: zola@0.20.0
