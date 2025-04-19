@@ -7,9 +7,6 @@ on:
       - main
       - publish
 
-env:
-  ZOLA_VERSION: 0.20.0
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,10 +17,7 @@ jobs:
         with:
           submodules: true
 
-      - name: Install Zola
-        uses: taiki-e/install-action@v2
-        with:
-          tool: zola@${{ env.ZOLA_VERSION }}
+      - uses: ./.github/workflows/get-zola.yml
 
       - name: Run zola build
         run: zola build

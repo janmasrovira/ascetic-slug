@@ -1,0 +1,17 @@
+name: Install Zola
+
+env:
+  ZOLA_VERSION: 0.20.0
+
+on:
+  workflow_call:
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Zola
+        uses: taiki-e/install-action@v2
+        with:
+          tool: zola@${{ env.ZOLA_VERSION }}
