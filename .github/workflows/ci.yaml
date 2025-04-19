@@ -17,7 +17,7 @@ jobs:
         with:
           submodules: true
 
-      - uses: ./.github/workflows/get-zola.yml
+      - uses: .github/workflows/get-zola
 
       - name: Run zola build
         run: zola build

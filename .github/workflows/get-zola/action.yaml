@@ -1,10 +1,10 @@
 name: Install Zola
 
-env:
-  ZOLA_VERSION: 0.20.0
-
 on:
   workflow_call:
+
+env:
+  ZOLA_VERSION: 0.20.0
 
 jobs:
   install:
