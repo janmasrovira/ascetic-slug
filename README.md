@@ -1,5 +1,4 @@
 # Readme
 
-Developement takes place in the `main` branch. Only the `publish` branch is
-deployed.
+The `publish` branch is deployed.
 
