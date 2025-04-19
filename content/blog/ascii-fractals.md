@@ -1,6 +1,9 @@
 +++
 title = "ASCII fractals in Haskell"
 date = 2018-02-20
+
+[extra]
+toc = false
 +++
 
 Getting hypnotized by the shape of a fractal is certainly fascinating. In this

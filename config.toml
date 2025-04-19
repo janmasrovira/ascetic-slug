@@ -12,8 +12,6 @@ highlight_code = true
 highlight_theme = "kronuz"
 
 [extra]
-toc = true
-use_cdn = false
 favicon = "/icon/favicon.png"
 theme = "toggle"              # light, dark, auto, toggle
 fancy_code = true
