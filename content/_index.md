@@ -10,5 +10,5 @@ functional programming languages, compilers and proof assistants. I use this
 blog to write about things that I find interesting. I hope you feel welcome.
 
 ## Blog Posts
-
 - [All posts](./blog)
+- [By tag](./tags)

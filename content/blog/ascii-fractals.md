@@ -2,6 +2,9 @@
 title = "ASCII fractals in Haskell"
 date = 2018-02-20
 
+[taxonomies]
+tags=["Haskell"]
+
 [extra]
 toc = false
 +++

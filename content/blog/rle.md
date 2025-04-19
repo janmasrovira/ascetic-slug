@@ -1,16 +1,18 @@
 +++
 title = "Run-length encoding verified in Agda"
 date = 2019-09-07
+
+[taxonomies]
+tags=["Agda", "formal verification"]
 +++
 
 This post is intended to be a guided exercise (with a proposed solution) for
-Agda beginner&rsquo;s who are familiar with the basics and want to work on a slightly
-more involved exercise than proving basic properties about natural numbers.
-By *verified algorithm* we mean that termination is guaranteed and that it produces
+Agda beginner's who are familiar with the basics and want to work on a slightly
+more involved exercise than proving basic properties about natural numbers. By
+*verified algorithm* we mean that termination is guaranteed and that it produces
 the right output. In our case we want the compression and decompression
-functions to satisfy $decompress ∘ compress = id$.
-Termination is automatically checked by Agda so it will not require any explicit
-proof.
+functions to satisfy $decompress ∘ compress = id$. Termination is automatically
+checked by Agda so it will not require an explicit proof.
 
 The full code is [here](https://gitlab.com/snippets/1893023) (spoilers!). Agda 2.6.0.1 was used.
 

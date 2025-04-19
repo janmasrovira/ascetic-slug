@@ -19,8 +19,8 @@ repo_url = "https://github.com/janmasrovira/hermes/tree/main/content/"
 katex_version = "0.16.22"
 
 menu = [
-    { name = "[home]", url = "/", weight = 2 },
-    { name = "[blog]", url = "/blog", weight = 1 },
+    { name = "[home]", url = "/", weight = 1 },
+    { name = "[blog]", url = "/blog", weight = 2 },
 ]
 
 socials = [

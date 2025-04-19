@@ -1,6 +1,10 @@
 +++
 title = "Using dependent types to write proofs in Haskell"
 date = 2021-06-02
+
+[taxonomies]
+tags=["Haskell", "logic", "formal verification"]
+
 [extra]
 toc = true
 +++

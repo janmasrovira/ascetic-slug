@@ -1,6 +1,10 @@
 +++
 title = "An Agda eDSL for well-typed Hilbert style proofs"
 date = 2019-05-19
+
+[taxonomies]
+tags=["Agda", "logic", "formal verification"]
+
 [extra]
 toc = true
 +++
