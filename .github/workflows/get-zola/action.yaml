@@ -3,10 +3,6 @@ name: Install Zola
 on:
   workflow_call:
 
-# Due to some bug I can't use env in a reuisable job: https://github.com/actions/runner/issues/2372
-# env:
-#   ZOLA_VERSION: 0.20.0
-
 runs:
   using: "composite"
   steps:
