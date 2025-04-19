@@ -4,11 +4,7 @@ on:
   pull_request:
   push:
     branches:
-      - main
       - publish
-
-env:
-  ZOLA_VERSION: 0.20.0
 
 jobs:
   build:
@@ -20,10 +16,7 @@ jobs:
         with:
           submodules: true
 
-      - name: Install Zola
-        uses: taiki-e/install-action@v2
-        with:
-          tool: zola@${{ env.ZOLA_VERSION }}
+      - uses: ./.github/workflows/get-zola
 
       - name: Run zola build
         run: zola build
