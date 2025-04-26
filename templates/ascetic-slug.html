@@ -1,0 +1,15 @@
+{% extends "homepage.html" %}
+
+{% block main_content %}
+  {{ super() }}
+
+  <h2>Blog Posts</h2>
+    {% block post_list %}
+        <main class="list">
+            {% set blog = get_section(path="blog/_index.md") %}
+            {% set show_pages = blog.pages %}
+            {{ post_macros::list_posts(pages=show_pages) }}
+        </main>
+    {% endblock post_list %}
+
+{% endblock main_content %}
