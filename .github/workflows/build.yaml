@@ -56,6 +56,6 @@ jobs:
       - name: Install git-pages-cli
         run: go install codeberg.org/git-pages/git-pages-cli@v1.8.0
       - name: Deploy to git-pages
-        run: git-pages-cli https://blog.janmasrovira.org/ --upload-dir artifact
+        run: $(go env GOPATH)/bin/git-pages-cli https://blog.janmasrovira.org/ --upload-dir artifact
         env:
           GIT_PAGES_PASSWORD: ${{ secrets.GIT_PAGES_PASSWORD }}
