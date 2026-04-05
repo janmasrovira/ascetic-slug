@@ -8,7 +8,6 @@ minify_html = true
 taxonomies = [{ name = "tags" }]
 
 [markdown]
-highlight_code = false
 
 [extra]
 favicon = "/icon/favicon.png"
