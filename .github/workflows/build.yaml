@@ -24,24 +24,38 @@ jobs:
 
       - name: Upload static files as artifact
         id: upload-artifact
-        uses: actions/upload-pages-artifact@v3 # or specific "vX.X.X" version tag for this action
+        uses: actions/upload-pages-artifact@v3
         with:
           path: public
 
-  deploy:
+  deploy-github:
     needs: build
     if: github.ref == 'refs/heads/publish'
-
     permissions:
       pages: write
       id-token: write
-
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  deploy-blog:
+    needs: build
+    if: github.ref == 'refs/heads/publish'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          path: artifact/
+      - run: tar -xf artifact/artifact.tar -C artifact/ && rm artifact/artifact.tar
+      - name: Install git-pages-cli
+        run: go install codeberg.org/git-pages/git-pages-cli@v1.8.0
+      - name: Deploy to git-pages
+        run: git-pages-cli https://blog.janmasrovira.org/ --upload-dir artifact
+        env:
+          GIT_PAGES_PASSWORD: ${{ secrets.GIT_PAGES_PASSWORD }}
