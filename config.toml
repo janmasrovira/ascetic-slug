@@ -1,4 +1,4 @@
-base_url = "https://janmasrovira.github.io/ascetic-slug"
+base_url = "https://blog.janmasrovira.org"
 theme = "hermes"
 title = "Ascetic Slug"
 description = "Programming blog"
@@ -8,7 +8,6 @@ minify_html = true
 taxonomies = [{ name = "tags" }]
 
 [markdown]
-highlight_code = false
 
 [extra]
 favicon = "/icon/favicon.png"

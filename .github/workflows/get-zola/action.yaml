@@ -9,4 +9,4 @@ runs:
     - name: Install Zola
       uses: taiki-e/install-action@v2
       with:
-        tool: zola@0.20.0
+        tool: zola@0.22.1
