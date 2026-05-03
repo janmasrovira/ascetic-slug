@@ -74,7 +74,28 @@ the recursion safe. The `ge` on the left is unconstrained. The result grade
 ⟨<span style="color: #c0392b; font-weight: bold">never</span>,
 <span style="color: #d97706; font-weight: bold">possibly</span>⟩
 says `many p` itself never fails and may or may not consume input. Each parser
-type carries a *grade* of this kind, and that is what we define next.
+type carries a *grade* of this kind, and the Parser type is a *graded monad*
+over these grades. We'll define grades first, then the graded monad abstraction.
+
+# Original contributions
+
+To the best of my knowledge:
+
+1. **Graded monads as a totality approach for parser combinators.** The first
+   use of graded monads in a parser combinator library. The grade tracks
+   error and consumption necessity in the type, and the monoid structure on
+   grades is exactly what makes `bind` compose.
+2. **First total monadic parsec-style parser combinator library (in any total
+   language).** Parsec-style means biased choice (try the left branch; fall
+   back only when it fails *without consuming input*) and a shallow embedding:
+   a parser is essentially a function from input to result, so recursive
+   parsers are ordinary recursive definitions. agdarsec is total and
+   parsec-style but not monadic. Danielsson is total and monadic but uses
+   symmetric choice and a deep embedding via Brzozowski derivatives.
+3. **First total parser combinator library in Lean 4.** `lean4-parser` uses
+   `partial`. agdarsec's approach could be ported but hasn't been.
+   Danielsson's approach uses sized types and mixed induction/coinduction,
+   which Lean does not support.
 
 # The grade
 
@@ -154,7 +175,7 @@ graded monadic operations.
 | pure  : α → m α               | gpure : α → m 1 α                         |
 | bind  : m α → (α → m β) → m β | gbind : m i α → (α → m j β) → m (i * j) β |
 
-prim-parser provides `GFunctor`, `GApplicative`, `GMonad`, and `LawfulGMonad`
+prim-parser provides `GradedFunctor`, `GradedApplicative`, `GradedMonad`, and `LawfulGradedMonad`
 typeclasses for the graded shape. I've proved the functor, applicative, and
 monad laws for `Parser` as Lean theorems. With `i j k : Grade`, the two
 sides of each `=` carry different grade indices syntactically; they unify
@@ -254,27 +275,28 @@ that by what `p` consumes when it succeeds.
 
 **`choice`** tries the first parser; on failure, the second. The error
 grade is `ge ⊓ ge'` (the combined parser only always-fails if both
-branches do); the consumption grade uses a small ternary helper:
+branches do); the consumption grade uses a small helper `ite` that cases
+on the first branch's failure pattern:
 
 ```lean
-abbrev ite (sel a b : Necessity) : Necessity :=
-  (a ⊓ b) ⊔ sel ⊓ a ⊔ sel.complement ⊓ b
+def ite (sel a b : Necessity) : Necessity :=
+  match sel with
+  | .never    => b                              -- first never fails: take b
+  | .always   => a                              -- first always fails: take a
+  | .possibly => if a = b then a else .possibly -- both might run
 
 choice : Parser ⟨ge, gc⟩ α → Parser ⟨ge', gc'⟩ α
        → Parser ⟨ge ⊓ ge', ge.ite gc' gc⟩ α
 ```
 
-`ge.ite gc' gc` cases on the first branch's failure pattern:
-
-- first branch never fails → second is unreachable, so consumption is `gc`.
-- first branch always fails → only the second runs, so consumption is `gc'`.
-- first branch may fail → both can run, so consumption is what they agree
-  on (`possibly` if they disagree).
+So in `ge.ite gc' gc`: if `ge = .never` (first branch never fails), the
+second is unreachable and consumption is `gc`. If `ge = .always`, only
+the second branch runs and consumption is `gc'`. Otherwise consumption is
+`gc` when `gc = gc'`, and `.possibly` otherwise.
 
 ---
 
-**`oneOf`** generalises `choice` to a non-empty list of parsers sharing a
-grade:
+**`oneOf`** runs the parsers in order, returning the first success.
 
 ```lean
 oneOf : NonEmptyList (Parser g α) → Parser g α
@@ -311,39 +333,52 @@ sepBy : (sep : Parser ⟨ge', gc'⟩ β) → (p : Parser ⟨ge, gc⟩ α)
       → Parser .flexible (List α)
 ```
 
-In agdarsec each individual parser must consume. Here the separator and
-the element only need to consume *together*: you can have an empty
-separator with a consuming element, or vice versa.
+The constraint `gc' ⊔ gc = .always` says the separator and the element
+must consume *together*.
 
-# Termination via `fix`
+# Guarded recursion via `fix`
 
-`fix` is where the consumption grade pays for itself:
-
-```lean
-def fix [Inhabited ε]
-  (f : Parser ε ⟨ge, .always⟩ α → Parser ε ⟨ge, .always⟩ α)
-  (h : .possibly ≤ ge := by simp)
-  : Parser ε ⟨ge, .always⟩ α
-```
-
-The body is a function `recParser → recParser` whose grade has `consumes =
-.always`. Internally `fix` peels one character per recursive call, so
-termination is structural on the input length:
+`fix` is how user-defined parsers express recursion:
 
 ```lean
-let rec go {n} (t : Text n) : Outcome ε n ⟨ge, .always⟩ α :=
-  match n, t with
-  | 0,     _ => Outcome.throw default
-  | n + 1, t =>
-    let self : Parser ε ⟨ge, .always⟩ α :=
-      ⟨fun {k} t' =>
-        if k ≤ n then go t' else Outcome.throw default⟩
-    f self |>.run t
+def fix : (Parser ⟨ge, .always⟩ α → Parser ⟨ge, .always⟩ α) → Parser ⟨ge, .always⟩ α
 ```
 
-If you try to call `fix` with a body that doesn't always consume, the type
-just won't match. There is no fuel parameter, no `partial`, no manual
-termination proof.
+The body takes a "self" reference and returns a parser with `consumes =
+.always`. That always-consuming guarantee is what unlocks termination:
+each recursive call eats at least one character, so the input strictly
+shrinks, and `fix` is implemented as ordinary structural recursion on the
+input length. No fuel, no `partial`, no manual termination proof —
+calling `fix` with a body that doesn't always consume simply doesn't
+type-check.
+
+An example: a parser for a balanced parenthesis group (e.g. `()`, `(())`,
+`(()())`):
+
+```lean
+def group : Parser .conditional Unit :=
+  fix fun rec => gdo
+    char '('
+    many rec
+    char ')'
+    return ()
+```
+
+The body's grade is `.conditional = ⟨possibly, always⟩` — it may fail (on
+mismatched input) and always consumes (the `(` and `)` together). The `rec`
+self-reference is only reached after `(` has consumed, so each recursive
+call sees a strictly shorter input. The call to `many rec` type-checks
+because `rec`'s grade has `consumes = .always`, which is exactly what `many`
+requires.
+
+A trivial extension accepts top-level sequences like `()()`:
+
+```lean
+def balanced : Parser .flexible Unit := skipMany group
+```
+
+`group`'s grade is `.conditional`, so it slots into `skipMany` with no
+further work.
 
 # The Parser type
 
@@ -383,6 +418,7 @@ input strictly decrease at every consuming step, which is what `fix` needs.
 
 # Examples
 
+TODO redo
 Before the examples, a note on `do`-notation. Lean's built-in `do` does not
 type-check on graded monads: `do` assumes a fixed monad, but every `←`
 shifts the surrounding grade by `*`. The library provides a `gdo` macro that
@@ -483,7 +519,7 @@ calculus.
 
 \* Neither library makes `Parser` an instance of the standard `Monad`
 typeclass. prim-parser's `Parser` is a *graded* monad (`bind`'s grade index
-changes with each step), and a `GMonad` instance with monad laws as
+changes with each step), and a `GradedMonad` instance with monad laws as
 propositional equalities. Danielsson's `Parser` defines a `bind` and proves
 the monad laws up to bag equality of parse results, but conditional
 coinduction in `bind`'s argument types prevents any typeclass instance.
@@ -495,7 +531,10 @@ guarded modal operator `□`. The cost: `pure` cannot be given the type
 `Parser`, so `Parser` is not a monad, do-notation is unavailable, and even
 `many` cannot be defined — only `many1`. Code that would be a one-line
 `do`-block in Haskell becomes a tangle of specialised combinators (`<&>`,
-`<&?>`, `<?&>`, ...).
+`<&?>`, `<?&>`, ...). The strict-consumption requirement also propagates to
+combinators like `sepBy`, where each individual parser must consume;
+prim-parser's grade-based version only requires that the separator and the
+element consume *together*.
 
 **[Danielsson 2010](https://dl.acm.org/doi/10.1145/1863543.1863585)** takes a
 different route, using mixed induction and coinduction in a deep embedding.
@@ -522,6 +561,6 @@ unbounded iteration.
   `parsec`-style) is doable.
 - **Generic input type.** The input is currently fixed to `List.Vector Char n`.
   Generalising to an arbitrary sized type is straightforward.
-- **Split out graded monads.** The `GFunctor` / `GApplicative` / `GMonad`
+- **Split out graded monads.** The `GradedFunctor` / `GradedApplicative` / `GradedMonad`
   hierarchy and their lawful counterparts have nothing to do with parsers;
   they belong either in mathlib or in their own library.
