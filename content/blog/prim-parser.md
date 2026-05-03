@@ -103,15 +103,15 @@ structure Grade where
 
 There are nine grades; seven of them are useful to name:
 
-| Name          | errors     | consumes   | Reading                           |
-|---------------|------------|------------|-----------------------------------|
-| `pure`        | `never`    | `never`    | always succeeds, no input read    |
-| `lookahead`   | `possibly` | `never`    | may fail, no consumption          |
-| `flexible`    | `never`    | `possibly` | infallible, may consume           |
-| `fallible`    | `possibly` | `possibly` | the most permissive grade         |
-| `conditional` | `possibly` | `always`   | may fail, must consume on success |
-| `empty`       | `always`   | `never`    | always fails                      |
-| `impossible`  | `never`    | `always`   | uninhabited                       |
+| Name        | errors   | consumes | Reading                           |
+|-------------|----------|----------|-----------------------------------|
+| pure        | never    | never    | always succeeds, no input read    |
+| lookahead   | possibly | never    | may fail, no consumption          |
+| flexible    | never    | possibly | infallible, may consume           |
+| fallible    | possibly | possibly | the most permissive grade         |
+| conditional | possibly | always   | may fail, must consume on success |
+| empty       | always   | never    | always fails                      |
+| impossible  | never    | always   | uninhabited                       |
 
 `Grade` is a monoid: the operation is componentwise `⊔` (sup) and the unit
 is `⟨never, never⟩`. I'll write `g * g'` for the monoid product; in this
@@ -137,49 +137,124 @@ closed on `Grade`.
 
 # Graded monad
 
-Given a parser `p : Parser ε g₁ α` and a continuation
-`f : α → Parser ε g₂ β`, what is the grade of `bind p f`? Either step can
-fail, and either step can consume — so the result has grade `g₁ * g₂`.
-
-That means the right type for bind is
+We just saw how grades multiply when parsers run in sequence. That's what
+`bind` does, and `pure` carries the unit grade. With `g g' : Grade`:
 
 ```lean
-def bind : Parser ε g α → (α → Parser ε g' β) → Parser ε (g * g') β
+def gpure : α → Parser .pure α  -- .pure = ⟨never, never⟩, the monoid unit
+def gbind : Parser g α → (α → Parser g' β) → Parser (g * g') β
 ```
 
-This is the signature of a *graded* monad — Katsumata's parametric effect
-monads — not an ordinary one. The graded operations carry a monoidal index;
-specialising the index to the trivial monoid recovers the standard
-operations:
+This is a *graded monad* ([Katsumata's parametric effect monads][katsumata]). In
+the table below we compare the signatures of standard monadic operations with
+graded monadic operations.
 
-| Standard                                  | Graded                                                    |
-|-------------------------------------------|-----------------------------------------------------------|
-| `pure  : α → m α`                         | `gpure : α → m 1 α`                                       |
-| `seq   : m (α → β) → m α → m β`           | `gseq  : m i (α → β) → m j α → m (i · j) β`               |
-| `bind  : m α → (α → m β) → m β`           | `gbind : m i α → (α → m j β) → m (i · j) β`               |
+| Standard Monad                | Graded Monad                              |
+|-------------------------------|-------------------------------------------|
+| pure  : α → m α               | gpure : α → m 1 α                         |
+| bind  : m α → (α → m β) → m β | gbind : m i α → (α → m j β) → m (i * j) β |
 
-The library defines `GFunctor`, `GApplicative`, and `GMonad` typeclasses
-following this pattern, and proves that `Parser` is a *lawful* instance of
-each: `LawfulGMonad` is a Lean theorem, not a comment in a docstring.
+prim-parser provides `GFunctor`, `GApplicative`, `GMonad`, and `LawfulGMonad`
+typeclasses for the graded shape. I've proved the functor, applicative, and
+monad laws for `Parser` as Lean theorems. With `i j k : Grade`, the two
+sides of each `=` carry different grade indices syntactically; they unify
+only after we prove the grade identity in the right column, and those
+identities follow from the monoid laws on `Grade`:
 
-The cost of being graded rather than ordinary is that Lean's built-in `do`
-notation does not type-check — every `←` would change the surrounding grade.
-The library ships a `gdo` macro that desugars to chained `gbind`s and emits a
-`grade_by` proof obligation at the end so the user can discharge any
-residual grade equation:
+| Property      | Equation                              | Grade equation            |
+|---------------|---------------------------------------|---------------------------|
+| Left unit     | gpure x >>= f = f x                   | 1 * j = j                 |
+| Right unit    | m >>= gpure = m                       | i * 1 = i                 |
+| Associativity | (m >>= f) >>= g = m >>= λa. f a >>= g | (i * j) * k = i * (j * k) |
+
+[katsumata]: https://dl.acm.org/doi/10.1145/2535838.2535846
+
+# Combinators
+
+Grades make combinator types informative. The `Necessity` operations
+(`⊔`, `⊓`, `complement`) are exactly what's needed to express how each
+combinator's output behaves in terms of its inputs.
+
+**`optional`** drops the error and returns `Option α`. The new error grade
+is `never`; the interesting question is the consumption grade:
 
 ```lean
-let plist : Parser Error .conditional SExp := gdo
-  lexeme (char '(')
-  let first ← sexp_rec
-  let rest  ← many (gdo whitespace; sexp_rec)
-  lexeme (char ')')
-  return listToPairs (first :: rest)
-  grade_by by simp
+optional : Parser ⟨ge, gc⟩ α → Parser ⟨.never, ge.complement ⊓ gc⟩ (Option α)
 ```
 
-In practice, `grade_by by simp` discharges almost everything, because the
-monoid laws are registered as `simp` lemmas.
+Read `ge.complement ⊓ gc` as "however often the parser *doesn't* fail,
+capped by what it consumes on success". When `ge = always`, `complement` is
+`never`, so consumption is `never`. When `ge = never`, `complement` is
+`always`, so consumption is just `gc`. The middle case takes care of itself.
+
+**`notFollowedBy`** is a lookahead that succeeds iff its argument fails:
+
+```lean
+notFollowedBy : Parser ⟨ge, gc⟩ α → Parser ⟨ge.complement, .never⟩ PUnit
+```
+
+The error grade flips; consumption is zero.
+
+**`choice`** is the most algebraic case. The combined parser only
+always-fails if both branches do, so the error grade is `ge ⊓ ge'`. The
+consumption grade needs a small ternary helper:
+
+```lean
+abbrev ite (sel a b : Necessity) : Necessity :=
+  (a ⊓ b) ⊔ sel ⊓ a ⊔ sel.complement ⊓ b
+
+choice : Parser ⟨ge, gc⟩ α → Parser ⟨ge', gc'⟩ α
+       → Parser ⟨ge ⊓ ge', ge.ite gc' gc⟩ α
+```
+
+`ge.ite gc' gc` cases on the first branch's failure pattern:
+
+- first branch never fails → second is unreachable, so consumption is `gc`.
+- first branch always fails → only the second runs, so consumption is `gc'`.
+- first branch may fail → both can run, so consumption is what they agree
+  on (`possibly` if they disagree).
+
+**`sepBy`** is more permissive than agdarsec's:
+
+```lean
+sepBy : (sep : Parser ⟨ge', gc'⟩ β) → (p : Parser ⟨ge, gc⟩ α)
+      → gc' ⊔ gc = .always
+      → Parser .flexible (List α)
+```
+
+In agdarsec each individual parser must consume. Here the separator and
+the element only need to consume *together*: you can have an empty separator
+with a consuming element, or vice versa.
+
+# Termination via `fix`
+
+`fix` is where the consumption grade pays for itself:
+
+```lean
+def fix [Inhabited ε]
+  (f : Parser ε ⟨ge, .always⟩ α → Parser ε ⟨ge, .always⟩ α)
+  (h : .possibly ≤ ge := by simp)
+  : Parser ε ⟨ge, .always⟩ α
+```
+
+The body is a function `recParser → recParser` whose grade has `consumes =
+.always`. Internally `fix` peels one character per recursive call, so
+termination is structural on the input length:
+
+```lean
+let rec go {n} (t : Text n) : Outcome ε n ⟨ge, .always⟩ α :=
+  match n, t with
+  | 0,     _ => Outcome.throw default
+  | n + 1, t =>
+    let self : Parser ε ⟨ge, .always⟩ α :=
+      ⟨fun {k} t' =>
+        if k ≤ n then go t' else Outcome.throw default⟩
+    f self |>.run t
+```
+
+If you try to call `fix` with a body that doesn't always consume, the type
+just won't match. There is no fuel parameter, no `partial`, no manual
+termination proof.
 
 # The Parser type
 
@@ -217,100 +292,15 @@ abbrev consumptionWitness (rest n : Nat) : Necessity → Prop
 The `< n` case for `consumes = always` is the load-bearing fact: it makes the
 input strictly decrease at every consuming step, which is what `fix` needs.
 
-# Combinator types do real work
-
-The grade-level algebra isn't decoration — it lets the types of combinators
-say genuinely useful things about how they behave.
-
-**`optional`** drops the error and gives back an `Option`. So far so
-ordinary. But what's the consumption grade? If the inner parser always fails,
-`optional` always returns `none`, so it consumes nothing. If it always
-succeeds, the consumption is whatever the inner parser does. If it may fail,
-consumption is conditional on success. The neat way to express this is with
-the lattice operations:
-
-```lean
-optional : Parser ε ⟨ge, gc⟩ α → Parser ε ⟨.never, ge.complement ⊓ gc⟩ (Option α)
-```
-
-`ge.complement ⊓ gc` reads "however often the parser *doesn't* fail, capped by however
-much the inner parser consumes". When `ge = always`, `complement` is
-`never`, so the meet is `never` — no consumption. When `ge = never`,
-`complement` is `always`, so the meet is just `gc`. The middle case takes
-care of itself.
-
-**`notFollowedBy`** uses `complement` similarly:
-
-```lean
-notFollowedBy : Parser ε ⟨ge, gc⟩ α → Parser ε ⟨ge.complement, .never⟩ PUnit
-```
-
-A parser that always fails turns into one that never fails; consumption is
-zeroed out.
-
-**`choice`** is the most interesting case. The error grade is `ge ⊓ ge'`
-(the combined parser only always fails if both branches do), and the
-consumption grade is computed by an `ite` indexed by the first branch's
-error grade:
-
-```lean
-choice : Parser ε ⟨ge, gc⟩ α → Parser ε ⟨ge', gc'⟩ α
-       → Parser ε ⟨ge ⊓ ge', ge.ite gc' gc⟩ α
-```
-
-If the first branch is infallible, the second is unreachable, so consumption
-is `gc`. If the first always fails, consumption is `gc'`. If the first may
-fail, consumption is whatever both agree on, falling back to `possibly`
-otherwise. That's exactly what `ite` computes:
-
-```lean
-abbrev ite (sel a b : Necessity) : Necessity :=
-  (a ⊓ b) ⊔ sel ⊓ a ⊔ sel.complement ⊓ b
-```
-
-**`sepBy`** is more permissive than `agdarsec`'s analogue:
-
-```lean
-sepBy : (sep : Parser ε ⟨ge', gc'⟩ β) → (p : Parser ε ⟨ge, gc⟩ α)
-      → gc' ⊔ gc = .always
-      → Parser ε .flexible (List α)
-```
-
-In `agdarsec` each individual parser must consume; here, the separator and
-the element only need to consume *together*. So you can have an empty
-separator combined with a consuming element, or vice versa.
-
-# Termination via `fix`
-
-`fix` is where the consumption grade pays for itself:
-
-```lean
-def fix [Inhabited ε]
-  (f : Parser ε ⟨ge, .always⟩ α → Parser ε ⟨ge, .always⟩ α)
-  (h : .possibly ≤ ge := by simp)
-  : Parser ε ⟨ge, .always⟩ α
-```
-
-The body is a function `recParser → recParser` whose grade has `consumes =
-.always`. Internally `fix` peels one character per recursive call, so
-termination is structural on the input length:
-
-```lean
-let rec go {n} (t : Text n) : Outcome ε n ⟨ge, .always⟩ α :=
-  match n, t with
-  | 0,     _ => Outcome.throw default
-  | n + 1, t =>
-    let self : Parser ε ⟨ge, .always⟩ α :=
-      ⟨fun {k} t' =>
-        if k ≤ n then go t' else Outcome.throw default⟩
-    f self |>.run t
-```
-
-If you try to call `fix` with a body that doesn't always consume, the type
-just won't match. There is no fuel parameter, no `partial`, no manual
-termination proof.
-
 # Examples
+
+Before the examples, a note on `do`-notation. Lean's built-in `do` does not
+type-check on graded monads: `do` assumes a fixed monad, but every `←`
+shifts the surrounding grade by `*`. The library provides a `gdo` macro that
+desugars to chained `gbind`s and emits a `grade_by` proof obligation for the
+residual grade equation. In practice `by simp` discharges almost everything,
+because the monoid laws are registered as `simp` lemmas. You'll see `gdo`
+and `grade_by` throughout the examples below.
 
 ## S-expressions
 

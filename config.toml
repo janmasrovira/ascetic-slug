@@ -1,6 +1,6 @@
 base_url = "https://blog.janmasrovira.org"
 theme = "hermes"
-title = "Ascetic Slug"
+title = "Jan Mas Rovira"
 description = "Programming blog"
 generate_feeds = true
 compile_sass = true
