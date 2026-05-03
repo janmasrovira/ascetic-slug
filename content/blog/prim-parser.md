@@ -83,9 +83,7 @@ We need to track two pieces of static information about a parser:
 1. **Errors.** Does it ever fail?
 2. **Consumption.** Does it ever consume input?
 
-Each axis admits three answers — `never`, `possibly`, `always` — so we
-introduce a three-valued lattice:
-
+Each axis admits three answers: `never`, `possibly`, `always`.
 ```lean
 inductive Necessity where
   | never
@@ -93,12 +91,7 @@ inductive Necessity where
   | always
 ```
 
-We order it `never < possibly < always` and equip it with the obvious
-distributive lattice structure: `⊔` for join (max), `⊓` for meet (min). It
-also forms a monoid under `⊔` with `never` as the unit, and a `complement`
-that swaps `always ↔ never` and fixes `possibly`. All the algebraic
-properties one expects (`max_never_left`, `complement_complement`, ...) are
-proved in the library, mostly by `decide`.
+We order them `never < possibly < always`, so `⊔` is `max` over this order.
 
 A `Grade` is just a pair:
 
@@ -108,41 +101,45 @@ structure Grade where
   consumes : Necessity
 ```
 
-There are nine possible grades; seven of them are useful enough to name:
+There are nine grades; seven of them are useful to name:
 
-| Name          | errors     | consumes   | Reading                            |
-|---------------|------------|------------|------------------------------------|
-| `pure`        | `never`    | `never`    | always succeeds, no input read     |
-| `lookahead`   | `possibly` | `never`    | may fail, no consumption           |
-| `flexible`    | `never`    | `possibly` | infallible, may consume            |
-| `fallible`    | `possibly` | `possibly` | the most permissive grade          |
-| `conditional` | `possibly` | `always`   | may fail, must consume on success  |
-| `empty`       | `always`   | `never`    | always fails                       |
-| `impossible`  | `never`    | `always`   | uninhabited (see below)            |
+| Name          | errors     | consumes   | Reading                           |
+|---------------|------------|------------|-----------------------------------|
+| `pure`        | `never`    | `never`    | always succeeds, no input read    |
+| `lookahead`   | `possibly` | `never`    | may fail, no consumption          |
+| `flexible`    | `never`    | `possibly` | infallible, may consume           |
+| `fallible`    | `possibly` | `possibly` | the most permissive grade         |
+| `conditional` | `possibly` | `always`   | may fail, must consume on success |
+| `empty`       | `always`   | `never`    | always fails                      |
+| `impossible`  | `never`    | `always`   | uninhabited                       |
 
-That last one is the most fun: a parser that *must* consume input but
-*cannot* fail is impossible to write — it would have to consume from the
-empty string. We can make this fact a theorem:
+`Grade` is a monoid: the operation is componentwise `⊔` (sup) and the unit
+is `⟨never, never⟩`. I'll write `g * g'` for the monoid product; in this
+post that's the same as `g ⊔ g'`.
 
-```lean
-instance : IsEmpty (Parser ε .impossible α) where
-  false p := by cases p.run ⟨[], rfl⟩; contradiction
+This is how grades combine when one parser runs after another. For example,
+first a parser that never fails and may consume, then one that may fail and
+always consumes:
+
+```
+⟨never, possibly⟩ * ⟨possibly, always⟩
+  = ⟨never ⊔ possibly, possibly ⊔ always⟩
+  = ⟨possibly, always⟩
 ```
 
-The two unnamed grades (`⟨always, possibly⟩` and `⟨always, always⟩`) describe
-parsers that always fail; the consumption component is operationally
-irrelevant when the result is always an error, but I keep them so the grade
-type is closed under composition.
+The result may fail (the second parser might) and always consumes (the
+second parser does).
 
-`Grade` is a monoid under componentwise `⊔` with unit `⟨never, never⟩`.
-That's the algebra that drives sequential composition.
+The two unnamed grades (`⟨always, possibly⟩` and `⟨always, always⟩`)
+describe parsers that always fail; the consumption component is irrelevant
+when the result is always an error. I keep them so the monoid product is
+closed on `Grade`.
 
 # Graded monad
 
 Given a parser `p : Parser ε g₁ α` and a continuation
 `f : α → Parser ε g₂ β`, what is the grade of `bind p f`? Either step can
-fail, and either step can consume — so the result has grade `g₁ ⊔ g₂` (which
-equals `g₁ * g₂` in the grade monoid).
+fail, and either step can consume — so the result has grade `g₁ * g₂`.
 
 That means the right type for bind is
 
