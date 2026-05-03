@@ -171,33 +171,90 @@ identities follow from the monoid laws on `Grade`:
 
 # Combinators
 
-Grades make combinator types informative. The `Necessity` operations
-(`⊔`, `⊓`, `complement`) are exactly what's needed to express how each
-combinator's output behaves in terms of its inputs.
+A tour of the combinators (`fix` has its own section). By the end of the tour I
+hope you'll see that grades do more than enforce totality; they also help
+document the combinator's behaviour in the type.
 
-**`optional`** drops the error and returns `Option α`. The new error grade
-is `never`; the interesting question is the consumption grade:
+---
+
+**`anyChar`** consumes and returns a single character, or fails if the
+input is empty:
 
 ```lean
-optional : Parser ⟨ge, gc⟩ α → Parser ⟨.never, ge.complement ⊓ gc⟩ (Option α)
+anyChar : Parser .conditional Char  -- .conditional = ⟨possibly, always⟩
 ```
 
-Read `ge.complement ⊓ gc` as "however often the parser *doesn't* fail,
-capped by what it consumes on success". When `ge = always`, `complement` is
-`never`, so consumption is `never`. When `ge = never`, `complement` is
-`always`, so consumption is just `gc`. The middle case takes care of itself.
+It may fail (on empty input) and always consumes on success.
 
-**`notFollowedBy`** is a lookahead that succeeds iff its argument fails:
+---
+
+**`lookahead`** runs `p` but never consumes:
+
+```lean
+lookahead : Parser ⟨ge, gc⟩ α → Parser ⟨ge, .never⟩ α
+```
+
+The error grade is preserved; the consumption grade is set to `.never`.
+
+---
+
+**`notFollowedBy`** succeeds exactly when `p` fails, without consuming:
 
 ```lean
 notFollowedBy : Parser ⟨ge, gc⟩ α → Parser ⟨ge.complement, .never⟩ PUnit
 ```
 
-The error grade flips; consumption is zero.
+`complement` is a `Necessity` operation defined like this:
 
-**`choice`** is the most algebraic case. The combined parser only
-always-fails if both branches do, so the error grade is `ge ⊓ ge'`. The
-consumption grade needs a small ternary helper:
+```
+complement never    = always
+complement possibly = possibly
+complement always   = never
+```
+
+If `p` always fails, `notFollowedBy p` never fails; if `p` never fails,
+`notFollowedBy p` always fails. In short, the error grade flips.
+
+---
+
+**`many`** applies a parser zero or more times, collecting results:
+
+```lean
+many : Parser ⟨ge, .always⟩ α → Parser .flexible (List α)
+```
+
+The argument must always consume (otherwise recursion wouldn't terminate);
+the result is `.flexible` (never fails, may consume) because zero
+repetitions is allowed.
+
+---
+
+**`many1`** is `many` with at least one repetition. The argument's grade is
+preserved exactly:
+
+```lean
+many1 : Parser ⟨ge, .always⟩ α → Parser ⟨ge, .always⟩ (NonEmptyList α)
+```
+
+---
+
+**`optional`** tries `p`; on failure, returns `none`. The result never
+fails:
+
+```lean
+optional : Parser ⟨ge, gc⟩ α → Parser ⟨.never, ge.complement ⊓ gc⟩ (Option α)
+```
+
+`optional p` only consumes input when `p` succeeds. `ge.complement` flips the
+error grade to capture how often that happens. Thatis, `never` if `p` always
+fails, `always` if `p` never fails. Taking the meet (`⊓`, min) with `gc` caps
+that by what `p` consumes when it succeeds.
+
+---
+
+**`choice`** tries the first parser; on failure, the second. The error
+grade is `ge ⊓ ge'` (the combined parser only always-fails if both
+branches do); the consumption grade uses a small ternary helper:
 
 ```lean
 abbrev ite (sel a b : Necessity) : Necessity :=
@@ -214,7 +271,39 @@ choice : Parser ⟨ge, gc⟩ α → Parser ⟨ge', gc'⟩ α
 - first branch may fail → both can run, so consumption is what they agree
   on (`possibly` if they disagree).
 
-**`sepBy`** is more permissive than agdarsec's:
+---
+
+**`oneOf`** generalises `choice` to a non-empty list of parsers sharing a
+grade:
+
+```lean
+oneOf : NonEmptyList (Parser g α) → Parser g α
+```
+
+---
+
+**`count`** parses exactly `n` occurrences, returning a length-indexed
+vector. Both grade components are relaxed to `.possibly`, since `count 0 p`
+succeeds without consuming:
+
+```lean
+count : (n : Nat) → Parser ⟨ge, gc⟩ α
+      → Parser ⟨ge ⊓ .possibly, gc ⊓ .possibly⟩ (Vector α n)
+```
+
+---
+
+**`count1`** is the specialisation to `n + 1`. With at least one repetition
+guaranteed, the argument's grade is preserved exactly:
+
+```lean
+count1 : (n : Nat) → Parser ⟨ge, gc⟩ α
+       → Parser ⟨ge, gc⟩ (Vector α (n + 1))
+```
+
+---
+
+**`sepBy`** parses zero or more occurrences of `p` separated by `sep`:
 
 ```lean
 sepBy : (sep : Parser ⟨ge', gc'⟩ β) → (p : Parser ⟨ge, gc⟩ α)
@@ -223,8 +312,8 @@ sepBy : (sep : Parser ⟨ge', gc'⟩ β) → (p : Parser ⟨ge, gc⟩ α)
 ```
 
 In agdarsec each individual parser must consume. Here the separator and
-the element only need to consume *together*: you can have an empty separator
-with a consuming element, or vice versa.
+the element only need to consume *together*: you can have an empty
+separator with a consuming element, or vice versa.
 
 # Termination via `fix`
 
@@ -380,7 +469,7 @@ def table : Parser Error .conditional ((n : Nat) × Table n) := gdo
 
 The [`Examples/`](https://github.com/janmasrovira/prim-parser/tree/bc8b8fb/Examples)
 directory has a few more parsers in the same style: arithmetic expressions
-(with operator precedence via `chainl1`), JSON, and the untyped lambda
+(with operator precedence), JSON, and the untyped lambda
 calculus.
 
 # Related work
@@ -433,3 +522,6 @@ unbounded iteration.
   `parsec`-style) is doable.
 - **Generic input type.** The input is currently fixed to `List.Vector Char n`.
   Generalising to an arbitrary sized type is straightforward.
+- **Split out graded monads.** The `GFunctor` / `GApplicative` / `GMonad`
+  hierarchy and their lawful counterparts have nothing to do with parsers;
+  they belong either in mathlib or in their own library.
