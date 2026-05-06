@@ -48,26 +48,23 @@ def many (p : Parser α) : Parser (List α) := do
     | none   => return []
 ```
 
-The definition of `many` fails Lean's termination check because it calls itself
-on the same input, so there is no structurally decreasing argument. Two obvious
-options that may come to mind: bound the number of recursive calls, or mark the
-definition `partial` and skip the check (what
-[`lean4-parser`](https://github.com/fpvandoorn/lean4-parser) does). Neither is
-satisfying. The first is too
-restrictive because there may not be a safe bound to pick. The second drops the
-totality guarantee (if `p` accepts the empty string, `many p` loops forever).
+But the definition of `many` fails Lean's termination check because it calls
+itself on the same input, so there is no structurally decreasing argument. Two
+obvious options that may come to mind: bound the number of recursive calls, or
+mark the definition `partial` and skip the check (what
+[lean4-parser](https://github.com/fpvandoorn/lean4-parser) does). Neither is
+satisfying. The first is too restrictive because there may not be a safe bound
+to pick. The second drops the totality guarantee (if `p` accepts the empty
+string, `many p` loops forever). A better solution comes from *total parser
+combinator libraries*. In prim-parser, every parser carries a *grade* in its
+type (a pair tracking error and consumption behavior). Look at `many`'s
+signature:
 
-There are other total parser libraries:
-[`agdarsec`](https://gitlab.com/gallais/agdarsec) and
-[Danielsson 2010](https://dl.acm.org/doi/10.1145/1863543.1863585). I'll comment on them in the [Related work](#related-work) section.
-
-For a preview, here is `many`'s signature in prim-parser:
-
-<pre><code>def many (p : Parser ε ⟨ge, <span style="color: #1e6fcc; font-weight: bold">always</span>⟩ α) : Parser ε ⟨<span style="color: #c0392b; font-weight: bold">never</span>, <span style="color: #d97706; font-weight: bold">possibly</span>⟩ (List α)
+<pre><code>def many (p : Parser ⟨ge, <span style="color: #1e6fcc; font-weight: bold">always</span>⟩ α) : Parser ⟨<span style="color: #c0392b; font-weight: bold">never</span>, <span style="color: #d97706; font-weight: bold">possibly</span>⟩ (List α)
 </code></pre>
 
-Read each grade as a pair: the left component tracks *errors*, the right component tracks
-*consumption*. The key fact is the
+The left component tracks *errors*; the right tracks *consumption*. The key
+fact is the
 <span style="color: #1e6fcc; font-weight: bold">always</span> in `p`'s grade:
 `p` is guaranteed to consume input on every success, and that is what makes
 the recursion safe. The `ge` on the left is unconstrained. The result grade
@@ -75,7 +72,18 @@ the recursion safe. The `ge` on the left is unconstrained. The result grade
 <span style="color: #d97706; font-weight: bold">possibly</span>⟩
 says `many p` itself never fails and may or may not consume input. Each parser
 type carries a *grade* of this kind, and the Parser type is a *graded monad*
-over these grades. We'll define grades first, then the graded monad abstraction.
+over these grades.
+
+To the best of my knowledge, the only practical implementation of a total parser
+combinator library is [agdarsec](https://github.com/gallais/agdarsec), by
+Guillaume Allais ([paper, 2018](https://gallais.github.io/pdf/agdarsec18.pdf)).
+The original library is in Agda but has been ported to Rocq
+([parseque](https://github.com/rocq-community/parseque)) and Idris
+([tparsec](https://github.com/gallais/idris-tparsec)). Earlier, [Danielsson
+2010](https://dl.acm.org/doi/10.1145/1863543.1863585) introduced the first total
+parser combinator library based on Brzozowski derivatives, but the approach has
+not seen practical adoption. I'll compare prim-parser to both in the [Related
+work](#related-work) section.
 
 # Original contributions
 
@@ -83,8 +91,7 @@ To the best of my knowledge:
 
 1. **Graded monads as a totality approach for parser combinators.** The first
    use of graded monads in a parser combinator library. The grade tracks
-   error and consumption necessity in the type, and the monoid structure on
-   grades is exactly what makes `bind` compose.
+   error and consumption necessity in the type.
 2. **First total monadic parsec-style parser combinator library (in any total
    language).** Parsec-style means biased choice (try the left branch; fall
    back only when it fails *without consuming input*) and a shallow embedding:
@@ -99,10 +106,10 @@ To the best of my knowledge:
 
 # The grade
 
-We need to track two pieces of static information about a parser:
+The grade tracks two pieces of static information about a parser:
 
-1. **Errors.** Does it ever fail?
-2. **Consumption.** Does it ever consume input?
+1. **Errors.** Can it fail?
+2. **Consumption.** Does it consume input on success?
 
 Each axis admits three answers: `never`, `possibly`, `always`.
 ```lean
@@ -112,7 +119,7 @@ inductive Necessity where
   | always
 ```
 
-We order them `never < possibly < always`, so `⊔` is `max` over this order.
+We order them `never < possibly < always`, so `⊔` is `max` over this order. Note that `⟨Necessity, ⊔, never⟩` forms a monoid.
 
 A `Grade` is just a pair:
 
@@ -134,9 +141,16 @@ There are nine grades; seven of them are useful to name:
 | empty       | always   | never    | always fails                      |
 | impossible  | never    | always   | uninhabited                       |
 
-`Grade` is a monoid: the operation is componentwise `⊔` (sup) and the unit
-is `⟨never, never⟩`. I'll write `g * g'` for the monoid product; in this
-post that's the same as `g ⊔ g'`.
+`Grade` is a monoid:
+
+```lean
+instance : Monoid Grade where
+  mul ⟨e, c⟩ ⟨e', c'⟩ := ⟨e ⊔ e', c ⊔ c'⟩
+  one := ⟨never, never⟩
+```
+
+I'll write `g * g'` for the monoid product; in this post that's the same as
+`g ⊔ g'`.
 
 This is how grades combine when one parser runs after another. For example,
 first a parser that never fails and may consume, then one that may fail and
@@ -175,11 +189,13 @@ graded monadic operations.
 | pure  : α → m α               | gpure : α → m 1 α                         |
 | bind  : m α → (α → m β) → m β | gbind : m i α → (α → m j β) → m (i * j) β |
 
-prim-parser provides `GradedFunctor`, `GradedApplicative`, `GradedMonad`, and `LawfulGradedMonad`
-typeclasses for the graded shape. I've proved the functor, applicative, and
-monad laws for `Parser` as Lean theorems. With `i j k : Grade`, the two
-sides of each `=` carry different grade indices syntactically; they unify
-only after we prove the grade identity in the right column, and those
+Note that graded monads are a strict generalisation of standard monads (the
+graded monad with the trivial monoid is exactly the standard monad). prim-parser
+provides `GradedFunctor`, `GradedApplicative`, `GradedMonad`, and the their
+respective `Lawful*` variants for the graded shape. I've proved the functor,
+applicative, and monad laws for `Parser` as Lean theorems. With `i j k : Grade`,
+the two sides of each law carry different grade indices syntactically; they
+unify only after we prove the grade identity in the right column, and those
 identities follow from the monoid laws on `Grade`:
 
 | Property      | Equation                              | Grade equation            |
@@ -192,9 +208,12 @@ identities follow from the monoid laws on `Grade`:
 
 # Combinators
 
-A tour of the combinators (`fix` has its own section). By the end of the tour I
-hope you'll see that grades do more than enforce totality; they also help
-document the combinator's behaviour in the type.
+This section is a tour of the common parser combinators you'd expect to find
+in any parser combinator library. For each, we'll look at the signature, describe the
+behaviour, and relate it back to the grade. By the end I hope you'll see
+that grades do more than enforce totality; they also help document the
+combinator's behaviour in the type. (`fix`, the recursion combinator, has
+its [own section](#guarded-recursion-via-fix).)
 
 ---
 
@@ -561,6 +580,7 @@ unbounded iteration.
   `parsec`-style) is doable.
 - **Generic input type.** The input is currently fixed to `List.Vector Char n`.
   Generalising to an arbitrary sized type is straightforward.
+- **Expore monad transformers.**.
 - **Split out graded monads.** The `GradedFunctor` / `GradedApplicative` / `GradedMonad`
   hierarchy and their lawful counterparts have nothing to do with parsers;
   they belong either in mathlib or in their own library.
