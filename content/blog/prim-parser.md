@@ -11,14 +11,13 @@ toc = true
 
 In this blog I present
 [prim-parser](https://github.com/janmasrovira/prim-parser), a Lean 4 *total*
-monadic parser combinator library in the spirit of
-[parsec](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/parsec-paper-letter.pdf).
-To ensure totality, every parser carries a *grade* in its type recording whether
-it *may*, *must*, or *cannot* consume input, and whether it *may*, *must*, or
-*cannot* fail. The resulting Parser type is a graded
-monad. The choice operator is biased like in `parsec`/`megaparsec`; and the
-graded monad laws are proved in Lean as propositional equalities. No prior total
-parser combinator library combines these.
+[parsec-style](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/parsec-paper-letter.pdf)
+monadic parser combinator library. To ensure totality, every parser carries a
+*grade* in its type recording whether it *may*, *must*, or *cannot* consume
+input, and whether it *may*, *must*, or *cannot* fail. The resulting Parser type
+is a graded monad. The choice operator is biased like in `parsec`/`megaparsec`;
+and the graded monad laws are proved in Lean as propositional equalities. No
+prior total parser combinator library combines these.
 
 # Introduction
 
@@ -55,10 +54,9 @@ mark the definition `partial` and skip the check (what
 [lean4-parser](https://github.com/fpvandoorn/lean4-parser) does). Neither is
 satisfying. The first is too restrictive because there may not be a safe bound
 to pick. The second drops the totality guarantee (if `p` accepts the empty
-string, `many p` loops forever). A better solution comes from *total parser
-combinator libraries*. In prim-parser, every parser carries a *grade* in its
-type (a pair tracking error and consumption behavior). Look at `many`'s
-signature:
+string, `many p` loops forever). A better solution comes enriching the type of
+the parser. In prim-parser, every parser carries a *grade* in its type (a pair
+tracking error and consumption behavior). Look at `many`'s signature:
 
 <pre><code>def many (p : Parser ⟨ge, <span style="color: #1e6fcc; font-weight: bold">always</span>⟩ α) : Parser ⟨<span style="color: #c0392b; font-weight: bold">never</span>, <span style="color: #d97706; font-weight: bold">possibly</span>⟩ (List α)
 </code></pre>
@@ -101,7 +99,7 @@ To the best of my knowledge:
    symmetric choice and a deep embedding via Brzozowski derivatives.
 3. **First total parser combinator library in Lean 4.** `lean4-parser` uses
    `partial`. agdarsec's approach could be ported but hasn't been.
-   Danielsson's approach uses sized types and mixed induction/coinduction,
+   Danielsson's approach uses [sized types](https://agda.readthedocs.io/en/latest/language/sized-types.html) and mixed induction/coinduction,
    which Lean does not support.
 
 # The grade
@@ -170,6 +168,11 @@ describe parsers that always fail; the consumption component is irrelevant
 when the result is always an error. I keep them so the monoid product is
 closed on `Grade`.
 
+As shown by both agdarsec and Danielsson, to ensure termination it is enough to
+track in the type whether a parser accepts the empty string. The grade I chose
+is more expressive than that. I'll justify it in [Why I chose this
+grade](#why-i-chose-this-grade).
+
 # Graded monad
 
 We just saw how grades multiply when parsers run in sequence. That's what
@@ -180,9 +183,10 @@ def gpure : α → Parser .pure α  -- .pure = ⟨never, never⟩, the monoid un
 def gbind : Parser g α → (α → Parser g' β) → Parser (g * g') β
 ```
 
-This is a *graded monad* ([Katsumata's parametric effect monads][katsumata]). In
-the table below we compare the signatures of standard monadic operations with
-graded monadic operations.
+This is a *graded monad* ([Katsumata's parametric effect monads][katsumata]).
+Briefly, a graded monad is like a standard monad indexed by an element `g` of
+some monoid (the *grade*). `gbind` multiplies the indices; `gpure` uses the
+monoid unit. In the table below I compare the signatures:
 
 | Standard Monad                | Graded Monad                              |
 |-------------------------------|-------------------------------------------|
@@ -190,13 +194,14 @@ graded monadic operations.
 | bind  : m α → (α → m β) → m β | gbind : m i α → (α → m j β) → m (i * j) β |
 
 Note that graded monads are a strict generalisation of standard monads (the
-graded monad with the trivial monoid is exactly the standard monad). prim-parser
-provides `GradedFunctor`, `GradedApplicative`, `GradedMonad`, and the their
-respective `Lawful*` variants for the graded shape. I've proved the functor,
-applicative, and monad laws for `Parser` as Lean theorems. With `i j k : Grade`,
-the two sides of each law carry different grade indices syntactically; they
-unify only after we prove the grade identity in the right column, and those
-identities follow from the monoid laws on `Grade`:
+graded monad with the trivial monoid is exactly the standard monad). No Lean
+library ships the graded hierarchy, so prim-parser provides `GradedFunctor`,
+`GradedApplicative`, `GradedMonad`, and their respective `Lawful*` variants
+itself. I've proved the functor, applicative, and monad laws for `Parser` as
+Lean theorems. With `i j k : Grade`, the two sides of each law carry different
+grade indices syntactically; they unify only after we prove the grade identity
+in the right column, and those identities follow from the monoid laws on
+`Grade`:
 
 | Property      | Equation                              | Grade equation            |
 |---------------|---------------------------------------|---------------------------|
@@ -212,8 +217,8 @@ This section is a tour of the common parser combinators you'd expect to find
 in any parser combinator library. For each, we'll look at the signature, describe the
 behaviour, and relate it back to the grade. By the end I hope you'll see
 that grades do more than enforce totality; they also help document the
-combinator's behaviour in the type. (`fix`, the recursion combinator, has
-its [own section](#guarded-recursion-via-fix).)
+combinator's behaviour in the type. `fix`, the recursion combinator, has
+its [own section](#guarded-recursion-via-fix).
 
 ---
 
@@ -231,17 +236,17 @@ It may fail (on empty input) and always consumes on success.
 **`lookahead`** runs `p` but never consumes:
 
 ```lean
-lookahead : Parser ⟨ge, gc⟩ α → Parser ⟨ge, .never⟩ α
+lookahead : Parser ⟨ge, gc⟩ α → Parser ⟨ge, never⟩ α
 ```
 
-The error grade is preserved; the consumption grade is set to `.never`.
+The error grade is preserved; the consumption grade is set to `never`.
 
 ---
 
 **`notFollowedBy`** succeeds exactly when `p` fails, without consuming:
 
 ```lean
-notFollowedBy : Parser ⟨ge, gc⟩ α → Parser ⟨ge.complement, .never⟩ PUnit
+notFollowedBy : Parser ⟨ge, gc⟩ α → Parser ⟨ge.complement, never⟩ PUnit
 ```
 
 `complement` is a `Necessity` operation defined like this:
@@ -260,7 +265,7 @@ If `p` always fails, `notFollowedBy p` never fails; if `p` never fails,
 **`many`** applies a parser zero or more times, collecting results:
 
 ```lean
-many : Parser ⟨ge, .always⟩ α → Parser .flexible (List α)
+many : Parser ⟨ge, always⟩ α → Parser .flexible (List α)
 ```
 
 The argument must always consume (otherwise recursion wouldn't terminate);
@@ -273,7 +278,7 @@ repetitions is allowed.
 preserved exactly:
 
 ```lean
-many1 : Parser ⟨ge, .always⟩ α → Parser ⟨ge, .always⟩ (NonEmptyList α)
+many1 : Parser ⟨ge, always⟩ α → Parser ⟨ge, always⟩ (NonEmptyList α)
 ```
 
 ---
@@ -282,7 +287,7 @@ many1 : Parser ⟨ge, .always⟩ α → Parser ⟨ge, .always⟩ (NonEmptyList �
 fails:
 
 ```lean
-optional : Parser ⟨ge, gc⟩ α → Parser ⟨.never, ge.complement ⊓ gc⟩ (Option α)
+optional : Parser ⟨ge, gc⟩ α → Parser ⟨never, ge.complement ⊓ gc⟩ (Option α)
 ```
 
 `optional p` only consumes input when `p` succeeds. `ge.complement` flips the
@@ -300,18 +305,18 @@ on the first branch's failure pattern:
 ```lean
 def ite (sel a b : Necessity) : Necessity :=
   match sel with
-  | .never    => b                              -- first never fails: take b
-  | .always   => a                              -- first always fails: take a
-  | .possibly => if a = b then a else .possibly -- both might run
+  | never    => b                              -- first never fails: take b
+  | always   => a                              -- first always fails: take a
+  | possibly => if a = b then a else possibly -- both might run
 
 choice : Parser ⟨ge, gc⟩ α → Parser ⟨ge', gc'⟩ α
        → Parser ⟨ge ⊓ ge', ge.ite gc' gc⟩ α
 ```
 
-So in `ge.ite gc' gc`: if `ge = .never` (first branch never fails), the
-second is unreachable and consumption is `gc`. If `ge = .always`, only
+So in `ge.ite gc' gc`: if `ge = never` (first branch never fails), the
+second is unreachable and consumption is `gc`. If `ge = always`, only
 the second branch runs and consumption is `gc'`. Otherwise consumption is
-`gc` when `gc = gc'`, and `.possibly` otherwise.
+`gc` when `gc = gc'`, and `possibly` otherwise.
 
 ---
 
@@ -324,12 +329,12 @@ oneOf : NonEmptyList (Parser g α) → Parser g α
 ---
 
 **`count`** parses exactly `n` occurrences, returning a length-indexed
-vector. Both grade components are relaxed to `.possibly`, since `count 0 p`
+vector. Both grade components are relaxed to `possibly`, since `count 0 p`
 succeeds without consuming:
 
 ```lean
 count : (n : Nat) → Parser ⟨ge, gc⟩ α
-      → Parser ⟨ge ⊓ .possibly, gc ⊓ .possibly⟩ (Vector α n)
+      → Parser ⟨ge ⊓ possibly, gc ⊓ possibly⟩ (Vector α n)
 ```
 
 ---
@@ -348,23 +353,44 @@ count1 : (n : Nat) → Parser ⟨ge, gc⟩ α
 
 ```lean
 sepBy : (sep : Parser ⟨ge', gc'⟩ β) → (p : Parser ⟨ge, gc⟩ α)
-      → gc' ⊔ gc = .always
+      → gc' ⊔ gc = always
       → Parser .flexible (List α)
 ```
 
-The constraint `gc' ⊔ gc = .always` says the separator and the element
+The constraint `gc' ⊔ gc = always` says the separator and the element
 must consume *together*.
+
+# Why I chose this grade
+
+As shown by both agdarsec and Danielsson, to ensure termination it is enough to
+track in the type whether a parser accepts the empty string. I decided to take a
+more expressive approach because the extra information in the grade pays for
+itself across the rest of the library:
+
+- **Sharper composition.** Tracking errors as a separate axis lets biased
+  `choice` and `optional` produce precise consumption grades. When the first
+  branch *never* fails, the second is unreachable and the result inherits the
+  first's consumption exactly; when it *always* fails, the result inherits the
+  second's. Without an error axis, both branches collapse to *may consume*.
+- **More combinators are typeable.** `notFollowedBy` flips the error grade;
+  without that axis there is no signature to give it.
+- **Looser preconditions.** Three consumption levels instead of a single bit
+  weakens `sepBy`'s requirement from *the element must always consume*
+  (agdarsec) to *the separator and the element must consume together*.
+- **Cheaper runtime representation.** `Outcome` is computed by pattern-matching
+  on the error grade, so an infallible parser carries no `Sum` tag and an
+  always-failing parser cannot even mention the success type.
 
 # Guarded recursion via `fix`
 
 `fix` is how user-defined parsers express recursion:
 
 ```lean
-def fix : (Parser ⟨ge, .always⟩ α → Parser ⟨ge, .always⟩ α) → Parser ⟨ge, .always⟩ α
+def fix : (Parser ⟨ge, always⟩ α → Parser ⟨ge, always⟩ α) → Parser ⟨ge, always⟩ α
 ```
 
 The body takes a "self" reference and returns a parser with `consumes =
-.always`. That always-consuming guarantee is what unlocks termination:
+always`. That always-consuming guarantee is what unlocks termination:
 each recursive call eats at least one character, so the input strictly
 shrinks, and `fix` is implemented as ordinary structural recursion on the
 input length. No fuel, no `partial`, no manual termination proof —
@@ -387,7 +413,7 @@ The body's grade is `.conditional = ⟨possibly, always⟩` — it may fail (on
 mismatched input) and always consumes (the `(` and `)` together). The `rec`
 self-reference is only reached after `(` has consumed, so each recursive
 call sees a strictly shorter input. The call to `many rec` type-checks
-because `rec`'s grade has `consumes = .always`, which is exactly what `many`
+because `rec`'s grade has `consumes = always`, which is exactly what `many`
 requires.
 
 A trivial extension accepts top-level sequences like `()()`:
@@ -416,9 +442,9 @@ type-level pattern matching that pays off:
 ```lean
 abbrev Outcome (ε : Type) (n : Nat) (g : Grade) (α : Type) :=
   match g.errors with
-  | .never    => Success n g.consumes α
-  | .possibly => ε ⊕ Success n g.consumes α
-  | .always   => ε
+  | never    => Success n g.consumes α
+  | possibly => ε ⊕ Success n g.consumes α
+  | always   => ε
 ```
 
 An infallible parser has no `Sum` overhead at all; an always-failing parser
@@ -427,9 +453,9 @@ cannot even mention the success type. The success result carries a
 
 ```lean
 abbrev consumptionWitness (rest n : Nat) : Necessity → Prop
-  | .never    => rest = n
-  | .possibly => rest ≤ n
-  | .always   => rest < n
+  | never    => rest = n
+  | possibly => rest ≤ n
+  | always   => rest < n
 ```
 
 The `< n` case for `consumes = always` is the load-bearing fact: it makes the
