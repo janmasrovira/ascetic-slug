@@ -179,7 +179,7 @@ We just saw how grades multiply when parsers run in sequence. That's what
 `bind` does, and `pure` carries the unit grade. With `g g' : Grade`:
 
 ```lean
-def gpure : α → Parser .pure α  -- .pure = ⟨never, never⟩, the monoid unit
+def gpure : α → Parser pure α  -- pure = ⟨never, never⟩, the monoid unit
 def gbind : Parser g α → (α → Parser g' β) → Parser (g * g') β
 ```
 
@@ -226,7 +226,7 @@ its [own section](#guarded-recursion-via-fix).
 input is empty:
 
 ```lean
-anyChar : Parser .conditional Char  -- .conditional = ⟨possibly, always⟩
+anyChar : Parser conditional Char  -- conditional = ⟨possibly, always⟩
 ```
 
 It may fail (on empty input) and always consumes on success.
@@ -249,7 +249,7 @@ The error grade is preserved; the consumption grade is set to `never`.
 notFollowedBy : Parser ⟨ge, gc⟩ α → Parser ⟨ge.complement, never⟩ PUnit
 ```
 
-`complement` is a `Necessity` operation defined like this:
+`complement` is a `Necessity` operation defined by these equations:
 
 ```
 complement never    = always
@@ -258,18 +258,18 @@ complement always   = never
 ```
 
 If `p` always fails, `notFollowedBy p` never fails; if `p` never fails,
-`notFollowedBy p` always fails. In short, the error grade flips.
+`notFollowedBy p` always fails. In short, the error grade is flipped.
 
 ---
 
 **`many`** applies a parser zero or more times, collecting results:
 
 ```lean
-many : Parser ⟨ge, always⟩ α → Parser .flexible (List α)
+many : Parser ⟨ge, always⟩ α → Parser flexible (List α)
 ```
 
 The argument must always consume (otherwise recursion wouldn't terminate);
-the result is `.flexible` (never fails, may consume) because zero
+the result is `flexible` (never fails, may consume) because zero
 repetitions is allowed.
 
 ---
@@ -354,32 +354,11 @@ count1 : (n : Nat) → Parser ⟨ge, gc⟩ α
 ```lean
 sepBy : (sep : Parser ⟨ge', gc'⟩ β) → (p : Parser ⟨ge, gc⟩ α)
       → gc' ⊔ gc = always
-      → Parser .flexible (List α)
+      → Parser flexible (List α)
 ```
 
 The constraint `gc' ⊔ gc = always` says the separator and the element
 must consume *together*.
-
-# Why I chose this grade
-
-As shown by both agdarsec and Danielsson, to ensure termination it is enough to
-track in the type whether a parser accepts the empty string. I decided to take a
-more expressive approach because the extra information in the grade pays for
-itself across the rest of the library:
-
-- **Sharper composition.** Tracking errors as a separate axis lets biased
-  `choice` and `optional` produce precise consumption grades. When the first
-  branch *never* fails, the second is unreachable and the result inherits the
-  first's consumption exactly; when it *always* fails, the result inherits the
-  second's. Without an error axis, both branches collapse to *may consume*.
-- **More combinators are typeable.** `notFollowedBy` flips the error grade;
-  without that axis there is no signature to give it.
-- **Looser preconditions.** Three consumption levels instead of a single bit
-  weakens `sepBy`'s requirement from *the element must always consume*
-  (agdarsec) to *the separator and the element must consume together*.
-- **Cheaper runtime representation.** `Outcome` is computed by pattern-matching
-  on the error grade, so an infallible parser carries no `Sum` tag and an
-  always-failing parser cannot even mention the success type.
 
 # Guarded recursion via `fix`
 
@@ -401,7 +380,7 @@ An example: a parser for a balanced parenthesis group (e.g. `()`, `(())`,
 `(()())`):
 
 ```lean
-def group : Parser .conditional Unit :=
+def group : Parser conditional Unit :=
   fix fun rec => gdo
     char '('
     many rec
@@ -409,7 +388,7 @@ def group : Parser .conditional Unit :=
     return ()
 ```
 
-The body's grade is `.conditional = ⟨possibly, always⟩` — it may fail (on
+The body's grade is `conditional = ⟨possibly, always⟩` — it may fail (on
 mismatched input) and always consumes (the `(` and `)` together). The `rec`
 self-reference is only reached after `(` has consumed, so each recursive
 call sees a strictly shorter input. The call to `many rec` type-checks
@@ -419,11 +398,32 @@ requires.
 A trivial extension accepts top-level sequences like `()()`:
 
 ```lean
-def balanced : Parser .flexible Unit := skipMany group
+def balanced : Parser flexible Unit := skipMany group
 ```
 
-`group`'s grade is `.conditional`, so it slots into `skipMany` with no
+`group`'s grade is `conditional`, so it slots into `skipMany` with no
 further work.
+
+# Why I chose this grade
+
+As shown by both agdarsec and Danielsson, to ensure termination it is enough to
+track in the type whether a parser accepts the empty string. I decided to take a
+more expressive approach because the extra information in the grade pays for
+itself across the rest of the library:
+
+- **Sharper composition.** Tracking errors as a separate axis lets biased
+  `choice` and `optional` produce precise consumption grades. When the first
+  branch *never* fails, the second is unreachable and the result inherits the
+  first's consumption exactly; when it *always* fails, the result inherits the
+  second's. Without an error axis, both branches collapse to *may consume*.
+- **More combinators are typeable.** `notFollowedBy` flips the error grade;
+  without that axis there is no signature to give it.
+- **Looser preconditions.** Three consumption levels instead of a single bit
+  weakens `sepBy`'s requirement from *the element must always consume*
+  (agdarsec) to *the separator and the element must consume together*.
+- **Cheaper runtime representation.** `Outcome` is computed by pattern-matching
+  on the error grade, so an infallible parser carries no `Sum` tag and an
+  always-failing parser cannot even mention the success type.
 
 # The Parser type
 
@@ -494,12 +494,12 @@ inductive SExp where
   | atom (str : String)
   | pair (l r : SExp)
 
-def patom : Parser Error .conditional SExp :=
+def patom : Parser Error conditional SExp :=
   .atom <$>ᵍ takeWhile1 (·.isAlphanum)
 
-def sexp : Parser Error .conditional SExp :=
+def sexp : Parser Error conditional SExp :=
   fix (fun sexp_rec =>
-    let plist : Parser Error .conditional SExp := gdo
+    let plist : Parser Error conditional SExp := gdo
       lexeme (char '(')
       let first ← sexp_rec
       let rest  ← many (gdo whitespace; sexp_rec)
@@ -533,13 +533,13 @@ structure Table (n : Nat) where
   columns : List.Vector String n
   rows    : List (List.Vector Value n)
 
-def row : Parser Error .flexible (List String) :=
+def row : Parser Error flexible (List String) :=
   sepBy comma field
 
-def exactRow (n : Nat) : Parser Error .fallible (List.Vector Value n) :=
+def exactRow (n : Nat) : Parser Error fallible (List.Vector Value n) :=
   sepByN comma cell n
 
-def table : Parser Error .conditional ((n : Nat) × Table n) := gdo
+def table : Parser Error conditional ((n : Nat) × Table n) := gdo
   let headers ← row
   newline
   let n      := headers.length
@@ -555,21 +555,21 @@ calculus.
 
 # Related work
 
-| Library                                                                  | Total | Monadic | Coinduction  |
-|--------------------------------------------------------------------------|:-----:|:-------:|:------------:|
-| [`agdarsec`](https://gitlab.com/gallais/agdarsec) (Agda)                 |   ✓   |    ✗    | not needed   |
-| [Danielsson 2010](https://dl.acm.org/doi/10.1145/1863543.1863585) (Agda) |   ✓   |    ✓\*  | needed       |
-| [`lean4-parser`](https://github.com/fpvandoorn/lean4-parser) (Lean)      |   ✗   |    ✓    | not needed   |
-| [`prim-parser`](https://github.com/janmasrovira/prim-parser) (Lean)      |   ✓   |    ✓\*  | not needed   |
+| Library                | Total | Monadic | Parsec-style | Left-recursion | Coinduction |
+|------------------------|:-----:|:-------:|:------------:|:--------------:|:-----------:|
+| agdarsec (Agda)        |   ✓   |    ✗    |      ✓       |       ✗        | not needed  |
+| Danielsson 2010 (Agda) |   ✓   |   ✓\*   |      ✗       |       ✓        |   needed    |
+| lean4-parser           |   ✗   |    ✓    |      ✓       |       ✗        | not needed  |
+| prim-parser            |   ✓   |   ✓\*   |      ✓       |       ✗        | not needed  |
 
-\* Neither library makes `Parser` an instance of the standard `Monad`
-typeclass. prim-parser's `Parser` is a *graded* monad (`bind`'s grade index
-changes with each step), and a `GradedMonad` instance with monad laws as
-propositional equalities. Danielsson's `Parser` defines a `bind` and proves
-the monad laws up to bag equality of parse results, but conditional
-coinduction in `bind`'s argument types prevents any typeclass instance.
+\* Neither library makes `Parser` an instance of the standard `Monad` typeclass.
+prim-parser's `Parser` is a *graded* monad (`bind`'s grade index changes with
+each step), and a `GradedMonad` instance with monad laws as propositional
+equalities. Danielsson's `Parser` defines a `bind` and proves the monad laws up
+to bag equality of parse results. It cannot be an instance of the standard monad
+because coinduction appears in `bind`'s argument types.
 
-**[`agdarsec`](https://gitlab.com/gallais/agdarsec)** sidesteps the
+**[agdarsec](https://gitlab.com/gallais/agdarsec)** sidesteps the
 termination problem by requiring every successful parse to *strictly* consume
 input, with recursion structured by course-of-values induction through a
 guarded modal operator `□`. The cost: `pure` cannot be given the type
@@ -593,7 +593,7 @@ to bag equality of parse results; the conditional coinduction in `bind`'s
 argument types prevents any typeclass instance, and `choice` is forced to be
 symmetric rather than biased.
 
-**[`lean4-parser`](https://github.com/fpvandoorn/lean4-parser)** is the
+**[lean4-parser](https://github.com/fpvandoorn/lean4-parser)** is the
 closest peer in Lean: a `parsec`-style library with a standard `Monad`
 instance and `do`-notation. Termination is opted out of via `partial` for
 unbounded iteration.
