@@ -5,6 +5,12 @@ on:
   push:
     branches:
       - publish
+      - draft
+
+env:
+  GIT_PAGES_CLI_VERSION: v1.8.0
+  BLOG_URL: https://blog.janmasrovira.org/
+  DRAFT_BLOG_URL: https://draft.blog.janmasrovira.org/
 
 jobs:
   build:
@@ -20,7 +26,7 @@ jobs:
 
       - name: Run zola build
         id: build
-        run: zola build
+        run: zola build ${{ github.ref == 'refs/heads/draft' && format('--base-url {0}', env.DRAFT_BLOG_URL) || '' }}
 
       - name: Upload static files as artifact
         id: upload-artifact
@@ -43,9 +49,11 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
+  # Deploys the same artifact to the self-hosted git-pages instance:
+  # publish branch -> blog.janmasrovira.org, draft branch -> draft.blog.janmasrovira.org.
   deploy-blog:
     needs: build
-    if: github.ref == 'refs/heads/publish'
+    if: github.ref == 'refs/heads/publish' || github.ref == 'refs/heads/draft'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -54,8 +62,9 @@ jobs:
           path: artifact/
       - run: tar -xf artifact/artifact.tar -C artifact/ && rm artifact/artifact.tar
       - name: Install git-pages-cli
-        run: go install codeberg.org/git-pages/git-pages-cli@v1.8.0
+        run: go install codeberg.org/git-pages/git-pages-cli@${{ env.GIT_PAGES_CLI_VERSION }}
       - name: Deploy to git-pages
-        run: $(go env GOPATH)/bin/git-pages-cli https://blog.janmasrovira.org/ --upload-dir artifact
+        # publish branch -> BLOG_URL; draft branch -> DRAFT_BLOG_URL
+        run: $(go env GOPATH)/bin/git-pages-cli ${{ github.ref == 'refs/heads/publish' && env.BLOG_URL || env.DRAFT_BLOG_URL }} --upload-dir artifact
         env:
-          GIT_PAGES_PASSWORD: ${{ secrets.GIT_PAGES_PASSWORD }}
+          GIT_PAGES_PASSWORD: ${{ github.ref == 'refs/heads/publish' && secrets.GIT_PAGES_PASSWORD || secrets.DRAFT_GIT_PAGES_PASSWORD }}
