@@ -91,12 +91,12 @@ To the best of my knowledge:
    use of graded monads in a parser combinator library. The grade tracks
    error and consumption necessity in the type.
 2. **First total monadic parsec-style parser combinator library (in any total
-   language).** Parsec-style means biased choice (try the left branch; fall
-   back only when it fails *without consuming input*) and a shallow embedding:
-   a parser is essentially a function from input to result, so recursive
-   parsers are ordinary recursive definitions. agdarsec is total and
-   parsec-style but not monadic. Danielsson is total and monadic but uses
-   symmetric choice and a deep embedding via Brzozowski derivatives.
+   language).** Parsec-style means biased choice (try the left branch first;
+   fall back to the right if it fails) and a shallow embedding: a parser is
+   essentially a function from input to result, so recursive parsers are
+   ordinary recursive definitions. agdarsec is total and parsec-style but not
+   monadic. Danielsson is total and monadic but uses symmetric choice and a
+   deep embedding via Brzozowski derivatives.
 3. **First total parser combinator library in Lean 4.** `lean4-parser` uses
    `partial`. agdarsec's approach could be ported but hasn't been.
    Danielsson's approach uses [sized types](https://agda.readthedocs.io/en/latest/language/sized-types.html) and mixed induction/coinduction,
@@ -610,12 +610,12 @@ calculus.
 
 # Related work
 
-| Library                | Total | Monadic | Parsec-style | Left-recursion | Coinduction |
-|------------------------|:-----:|:-------:|:------------:|:--------------:|:-----------:|
-| agdarsec (Agda)        |   ✓   |    ✗    |      ✓       |       ✗        | not needed  |
-| Danielsson 2010 (Agda) |   ✓   |   ✓\*   |      ✗       |       ✓        |   needed    |
-| lean4-parser           |   ✗   |    ✓    |      ✓       |       ✗        | not needed  |
-| prim-parser            |   ✓   |   ✓\*   |      ✓       |       ✗        | not needed  |
+| Library         | Total | Monadic | Parsec-style | Left-recursion | Coinduction |
+|-----------------|:-----:|:-------:|:------------:|:--------------:|:-----------:|
+| agdarsec        |   ✓   |    ✗    |      ✓       |       ✗        | not needed  |
+| Danielsson 2010 |   ✓   |   ✓\*   |      ✗       |       ✓        |   needed    |
+| lean4-parser    |   ✗   |    ✓    |      ✓       |       ✗        | not needed  |
+| prim-parser     |   ✓   |   ✓\*   |      ✓       |       ✗        | not needed  |
 
 \* Neither library makes `Parser` an instance of the standard `Monad` typeclass.
 prim-parser's `Parser` is a *graded* monad (`bind`'s grade index changes with
@@ -624,34 +624,38 @@ equalities. Danielsson's `Parser` defines a `bind` and proves the monad laws up
 to bag equality of parse results. It cannot be an instance of the standard monad
 because coinduction appears in `bind`'s argument types.
 
-**[agdarsec](https://gitlab.com/gallais/agdarsec)** sidesteps the
-termination problem by requiring every successful parse to *strictly* consume
-input, with recursion structured by course-of-values induction through a
-guarded modal operator `□`. The cost: `pure` cannot be given the type
-`Parser`, so `Parser` is not a monad, do-notation is unavailable, and even
-`many` cannot be defined — only `many1`. Code that would be a one-line
+## [lean4-parser](https://github.com/fgdorais/lean4-parser)
+Both lean4-parser and prim-parser are parsec style libraries and thus share
+the implementation stra
+
+is
+the closest peer in Lean: a `parsec`-style library with a standard `Monad`
+instance and `do`-notation. Termination is opted out of via `partial` for
+unbounded iteration.
+
+## [Danielsson 2010](https://dl.acm.org/doi/10.1145/1863543.1863585)
+takes a different route, using mixed induction and coinduction in a deep
+embedding. Grammars are reified as data and parsed via Brzozowski derivatives,
+which supports left recursion — something neither agdarsec nor prim-parser
+handle directly. The cost is that the derivative-based backend is worst-case
+exponential in input length (the paper itself acknowledges this with a concrete
+witness: `p = fail >>= λ b → fail` has *n*th derivative `p | p | … | p` with 2ⁿ
+choices). `bind` exists and the monad laws are proved, but only up to bag
+equality of parse results; the conditional coinduction in `bind`'s argument
+types prevents any typeclass instance, and `choice` is forced to be symmetric
+rather than biased.
+
+## [agdarsec](https://gitlab.com/gallais/agdarsec)
+sidesteps the termination problem by requiring every successful parse to
+*strictly* consume input, with recursion structured by course-of-values
+induction through a guarded modal operator `□`. The cost: `pure` cannot be given
+the type `Parser`, so `Parser` is not a monad, do-notation is unavailable, and
+even `many` cannot be defined — only `many1`. Code that would be a one-line
 `do`-block in Haskell becomes a tangle of specialised combinators (`<&>`,
 `<&?>`, `<?&>`, ...). The strict-consumption requirement also propagates to
 combinators like `sepBy`, where each individual parser must consume;
 prim-parser's grade-based version only requires that the separator and the
 element consume *together*.
-
-**[Danielsson 2010](https://dl.acm.org/doi/10.1145/1863543.1863585)** takes a
-different route, using mixed induction and coinduction in a deep embedding.
-Grammars are reified as data and parsed via Brzozowski derivatives, which
-supports left recursion — something neither agdarsec nor prim-parser handle
-directly. The cost is that the derivative-based backend is worst-case
-exponential in input length (the paper itself acknowledges this with a
-concrete witness: `p = fail >>= λ b → fail` has *n*th derivative `p | p | … | p`
-with 2ⁿ choices). `bind` exists and the monad laws are proved, but only up
-to bag equality of parse results; the conditional coinduction in `bind`'s
-argument types prevents any typeclass instance, and `choice` is forced to be
-symmetric rather than biased.
-
-**[lean4-parser](https://github.com/fgdorais/lean4-parser)** is the
-closest peer in Lean: a `parsec`-style library with a standard `Monad`
-instance and `do`-notation. Termination is opted out of via `partial` for
-unbounded iteration.
 
 # What's left
 
