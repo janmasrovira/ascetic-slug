@@ -470,38 +470,45 @@ the `fix` combinator.
 # The `gdo` macro {#gdo}
 
 `do`-notation is a well-established syntax sugar for writing monadic programs.
-Analogously, I have added a `gdo` macro that adapts it to graded monads. The
-`gdo` macro included in prim-parser works for any graded monad, not just the one implemented by the
-parser.
+Analogously, I have implemented a `gdo` macro that adapts it to graded monads.
+The `gdo` macro included in prim-parser works for any graded monad, not just the
+one implemented by the parser. Eventually the `gdo` macro should be published
+independently of prim-parser.
 
-
-The grade `gdo` infers is the literal product of the grades of its constituent
-parsers. For instance, sequencing two parsers of grade `g` yields `g * g`:
+The `gdo` macro just sequences statements with `gbind`. As we say, the return
+type of `gbind` is graded by the product of its arguments grades. For instance,
+sequencing two parsers of grade `g` yields `g * g`:
 
 <pre><code>def twice (p : Parser ε g α) : Parser ε <span style="color: #1e6fcc; font-weight: bold">(g * g)</span> α := gdo
   p
   p
 </code></pre>
 
-This type-checks, but the inferred grade isn't always the one we want to expose.
-On `Grade`, multiplication is idempotent (`Grade.mul_idem : g * g = g`), so
-we'd rather write the cleaner signature:
+This type-checks, but the inferred grade `g * g` isn't the one we want to expose.
+We want to have:
 
-<pre><code>def twice (p : Parser ε g α) : Parser ε <span style="color: #1e6fcc; font-weight: bold">g</span> α := gdo
+<pre><code>def twice (p : Parser ε g α) : Parser ε <span style="color: #1e6fcc; font-weight: bold">g</span> α := ...
+</code></pre>
+
+This no longer type-checks on its own because `g * g` is not definitionally
+equal to `g`. prim-parser provides `gcast`; a specialised substitution for the
+grade of the monad:
+
+```lean
+def gcast (h : i = j) (x : m i α) : m j α := h ▸ x
+```
+
+We can apply `gcast` directly to the `gdo` block:
+
+<pre><code>def twice (p : Parser ε g α) : Parser ε <span style="color: #1e6fcc; font-weight: bold">g</span> α := gcast (by simp) <| gdo
   p
   p
 </code></pre>
 
-This no longer type-checks on its own: `gdo` produces `Parser ε (g * g) α`, but
-`g * g` doesn't reduce to `g` definitionally. prim-parser provides `gcast` to
-bridge the gap by a proof of grade equality:
+`by simp` proves `g * g = g` by using a simp lemma included in the library.
 
-```lean
-def gcast (h : i = j) (x : f i α) : f j α := h ▸ x
-```
-
-The `grade_by` clause in a `gdo` block is sugar for wrapping the result in a
-`gcast`:
+The `grade_by` clause in a `gdo` block is sugar for exactly this `gcast`
+wrapping, but written at the end of the block:
 
 <pre><code>def twice (p : Parser ε g α) : Parser ε <span style="color: #1e6fcc; font-weight: bold">g</span> α := gdo
   p
@@ -509,19 +516,16 @@ The `grade_by` clause in a `gdo` block is sugar for wrapping the result in a
   <span style="color: #1e6fcc; font-weight: bold">grade_by by simp</span>
 </code></pre>
 
-`by simp` proves `g * g = g` by using a simp lemma included in the library.
+Writing `grade_by` at the end lets you append the proof after the block already
+type-checks at its inferred grade and it keeps the layout clean without wrapping
+the whole `gdo` in `gcast (…) <| …`.
 
 # Examples
 
-TODO redo
-
-Before the examples, a note on `do`-notation. Lean's built-in `do` does not
-type-check on graded monads: `do` assumes a fixed monad, but every `←`
-shifts the surrounding grade by `*`. The library provides a `gdo` macro that
-desugars to chained `gbind`s and emits a `grade_by` proof obligation for the
-residual grade equation. In practice `by simp` discharges almost everything,
-because the monoid laws are registered as `simp` lemmas. You'll see `gdo`
-and `grade_by` throughout the examples below.
+This section presents two examples: S-expressions and CSV. The
+[`Examples/`](https://github.com/janmasrovira/prim-parser/tree/bc8b8fb/Examples)
+directory in the repo has a few more parsers in the same style: arithmetic
+expressions (with operator precedence), JSON, and the untyped lambda calculus.
 
 ## S-expressions
 
