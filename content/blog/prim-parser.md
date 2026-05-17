@@ -9,22 +9,22 @@ tags=["Lean", "formal verification"]
 toc = true
 +++
 
-In this blog I present
+In this post I present
 [prim-parser](https://github.com/janmasrovira/prim-parser), a Lean 4 *total*
-[parsec-style](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/parsec-paper-letter.pdf)
-monadic parser combinator library. To ensure totality, every parser carries a
-*grade* in its type recording whether it *may*, *must*, or *cannot* consume
-input, and whether it *may*, *must*, or *cannot* fail. The resulting Parser type
-is a graded monad. The choice operator is biased like in `parsec`/`megaparsec`;
-and the graded monad laws are proved in Lean as propositional equalities. No
-prior total parser combinator library combines these.
+monadic parser combinator library in the
+[parsec](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/parsec-paper-letter.pdf)
+tradition. To the best of my knowledge, it is the first of its kind. To ensure
+totality, every parser carries a *grade* recording whether it *may*, *must*, or
+*cannot* consume input, and whether it *may*, *must*, or *cannot* fail; the
+Parser type is a graded monad over these grades. The graded monad laws are
+proven as propositional equalities.
 
 # Introduction
 
-Monadic parser combinators are a popular tool in functional
-programming. A small set of higher-order functions and do-notation is enough to
-assemble parsers for complex grammars, and since parsers are ordinary values in
-the host language, you get its abstractions and familiar syntax.
+Monadic parser combinators are a popular tool in functional programming. A small
+set of higher-order functions and do-notation is enough to assemble parsers for
+complex grammars, and since parsers are ordinary values in the host language,
+you get its abstractions and familiar syntax.
 
 A typical example is parsing an identifier: a letter followed by alphanumeric
 characters:
@@ -94,9 +94,9 @@ To the best of my knowledge:
    language).** Parsec-style means biased choice (try the left branch first;
    fall back to the right if it fails) and a shallow embedding: a parser is
    essentially a function from input to result, so recursive parsers are
-   ordinary recursive definitions. agdarsec is total and parsec-style but not
-   monadic. Danielsson is total and monadic but uses symmetric choice and a
-   deep embedding via Brzozowski derivatives.
+   represented as ordinary recursive definitions. agdarsec is total and
+   parsec-style but not monadic. Danielsson is total and monadic but uses
+   symmetric choice and a deep embedding via Brzozowski derivatives.
 3. **First total parser combinator library in Lean 4.** `lean4-parser` uses
    `partial`. agdarsec's approach could be ported but hasn't been.
    Danielsson's approach uses [sized types](https://agda.readthedocs.io/en/latest/language/sized-types.html) and mixed induction/coinduction,
@@ -147,12 +147,10 @@ instance : Monoid Grade where
   one := ⟨never, never⟩
 ```
 
-I'll write `g * g'` for the monoid product; in this post that's the same as
-`g ⊔ g'`.
-
-This is how grades combine when one parser runs after another. For example,
-first a parser that never fails and may consume, then one that may fail and
-always consumes:
+I'll write `g * g'` for the monoid product (in this post the same as `g ⊔ g'`).
+It expresses how grades combine when one parser runs after another. For example,
+suppose we run a parser that never fails and may consume, followed by one that
+may fail and always consumes:
 
 ```
 ⟨never, possibly⟩ * ⟨possibly, always⟩
@@ -170,12 +168,14 @@ closed on `Grade`.
 
 As shown by both agdarsec and Danielsson, to ensure termination it is enough to
 track in the type whether a parser accepts the empty string. The grade I chose
-is more expressive than that. TODO finish this paragraph
+is more expressive than that. As we will see in the
+[Combinators](#combinators) section, this allows giving precise types to
+combinators that a simpler grade could not.
 
 # Graded monad
 
 We just saw how grades multiply when parsers run in sequence. That's what
-`bind` does, and `pure` carries the unit grade. With `g g' : Grade`:
+`gbind` does, and `gpure` carries the unit grade. With `g g' : Grade`:
 
 ```lean
 def gpure : α → Parser pure α  -- pure = ⟨never, never⟩, the monoid unit
@@ -398,30 +398,6 @@ second parser `many self` possibly consumes (because `many` accepts zero
 occurrences), the third parser `char ')'` always consumes. It obviously follows
 that the sequence of the parsers is always consuming and thus we've provided a
 valid argument for `fix`.
-
-# Grade discussion {#why-track-error}
-
-As shown by both agdarsec and Danielsson, to ensure termination it is enough to
-track in the type whether a parser accepts the empty string. Our type
-annotation, the grade, is richer in two ways. First, consumtpion is expressed by
-the 3-element `Necessity`. Second, it also keeps track of errors; also with
-`Necessity`.
-
-TODO merge into parser type section
-
-<!-- - **Sharper composition.** Tracking errors as a separate axis lets biased -->
-<!--   `choice` and `optional` produce precise consumption grades. When the first -->
-<!--   branch *never* fails, the second is unreachable and the result inherits the -->
-<!--   first's consumption exactly; when it *always* fails, the result inherits the -->
-<!--   second's. Without an error axis, both branches collapse to *may consume*. -->
-<!-- - **More combinators are typeable.** `notFollowedBy` flips the error grade; -->
-<!--   without that axis there is no signature to give it. -->
-<!-- - **Looser preconditions.** Three consumption levels instead of a single bit -->
-<!--   weakens `sepBy`'s requirement from *the element must always consume* -->
-<!--   (agdarsec) to *the separator and the element must consume together*. -->
-<!-- - **Cheaper runtime representation.** `Outcome` is computed by pattern-matching -->
-<!--   on the error grade, so an infallible parser carries no `Sum` tag and an -->
-<!--   always-failing parser cannot even mention the success type. -->
 
 # The Parser type
 
