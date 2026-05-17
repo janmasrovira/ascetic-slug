@@ -51,7 +51,7 @@ But the definition of `many` fails Lean's termination check because it calls
 itself on the same input, so there is no structurally decreasing argument. Two
 obvious options that may come to mind: bound the number of recursive calls, or
 mark the definition `partial` and skip the check (what
-[lean4-parser](https://github.com/fpvandoorn/lean4-parser) does). Neither is
+[lean4-parser](https://github.com/fgdorais/lean4-parser) does). Neither is
 satisfying. The first is too restrictive because there may not be a safe bound
 to pick. The second drops the totality guarantee (if `p` accepts the empty
 string, `many p` loops forever). A better solution comes enriching the type of
@@ -170,8 +170,7 @@ closed on `Grade`.
 
 As shown by both agdarsec and Danielsson, to ensure termination it is enough to
 track in the type whether a parser accepts the empty string. The grade I chose
-is more expressive than that. I'll justify it in [Why I chose this
-grade](#why-i-chose-this-grade).
+is more expressive than that. TODO finish this paragraph
 
 # Graded monad
 
@@ -240,6 +239,14 @@ lookahead : Parser ⟨ge, gc⟩ α → Parser ⟨ge, never⟩ α
 ```
 
 The error grade is preserved; the consumption grade is set to `never`.
+
+---
+
+**`eof`** succeeds only when there is no more input:
+
+```lean
+eof : Parser lookahead PUnit  -- lookahead = ⟨possibly, never⟩
+```
 
 ---
 
@@ -362,83 +369,73 @@ must consume *together*.
 
 # Guarded recursion via `fix`
 
-`fix` is how user-defined parsers express recursion:
+The `fix` combinator enables recursive parsers:
 
 ```lean
-def fix : (Parser ⟨ge, always⟩ α → Parser ⟨ge, always⟩ α) → Parser ⟨ge, always⟩ α
+def fix : ((self : Parser ⟨ge, always⟩ α) → Parser ⟨ge, always⟩ α) → Parser ⟨ge, always⟩ α
 ```
 
-The body takes a "self" reference and returns a parser with `consumes =
-always`. That always-consuming guarantee is what unlocks termination:
-each recursive call eats at least one character, so the input strictly
-shrinks, and `fix` is implemented as ordinary structural recursion on the
-input length. No fuel, no `partial`, no manual termination proof —
-calling `fix` with a body that doesn't always consume simply doesn't
-type-check.
+The argument to `fix` is a function. This function must produce a parser that
+alwas consumes on success. For recursive calls, it uses the `self` argument
+parser.
 
-An example: a parser for a balanced parenthesis group (e.g. `()`, `(())`,
-`(()())`):
+Let's look at an example: a parser for a balanced parenthesis group (e.g. `()`,
+`(())`, `(()())`):
 
 ```lean
 def group : Parser conditional Unit :=
-  fix fun rec => gdo
-    char '('
-    many rec
+  fix fun self => gdo
+    char '('  -- always consumes
+    many self -- possibly consumes
     char ')'
-    return ()
 ```
 
-The body's grade is `conditional = ⟨possibly, always⟩` — it may fail (on
-mismatched input) and always consumes (the `(` and `)` together). The `rec`
-self-reference is only reached after `(` has consumed, so each recursive
-call sees a strictly shorter input. The call to `many rec` type-checks
-because `rec`'s grade has `consumes = always`, which is exactly what `many`
-requires.
+We use `fix` to introduce a recursive parser. The type of `fix` mandates that in
+the body of the lambda we must build an always consuming parser. We do so by
+sequencing three simple parsers with `gdo`. `gdo` is `do`-notation for graded
+monads (covered [later](#gdo)). The first parser `char '('` always consumes; the
+second parser `many self` possibly consumes (because `many` accepts zero
+occurrences), the third parser `char ')'` always consumes. It obviously follows
+that the sequence of the parsers is always consuming and thus we've provided a
+valid argument for `fix`.
 
-A trivial extension accepts top-level sequences like `()()`:
-
-```lean
-def balanced : Parser flexible Unit := skipMany group
-```
-
-`group`'s grade is `conditional`, so it slots into `skipMany` with no
-further work.
-
-# Why I chose this grade
+# Grade discussion {#why-track-error}
 
 As shown by both agdarsec and Danielsson, to ensure termination it is enough to
-track in the type whether a parser accepts the empty string. I decided to take a
-more expressive approach because the extra information in the grade pays for
-itself across the rest of the library:
+track in the type whether a parser accepts the empty string. Our type
+annotation, the grade, is richer in two ways. First, consumtpion is expressed by
+the 3-element `Necessity`. Second, it also keeps track of errors; also with
+`Necessity`.
 
-- **Sharper composition.** Tracking errors as a separate axis lets biased
-  `choice` and `optional` produce precise consumption grades. When the first
-  branch *never* fails, the second is unreachable and the result inherits the
-  first's consumption exactly; when it *always* fails, the result inherits the
-  second's. Without an error axis, both branches collapse to *may consume*.
-- **More combinators are typeable.** `notFollowedBy` flips the error grade;
-  without that axis there is no signature to give it.
-- **Looser preconditions.** Three consumption levels instead of a single bit
-  weakens `sepBy`'s requirement from *the element must always consume*
-  (agdarsec) to *the separator and the element must consume together*.
-- **Cheaper runtime representation.** `Outcome` is computed by pattern-matching
-  on the error grade, so an infallible parser carries no `Sum` tag and an
-  always-failing parser cannot even mention the success type.
+TODO merge into parser type section
+
+<!-- - **Sharper composition.** Tracking errors as a separate axis lets biased -->
+<!--   `choice` and `optional` produce precise consumption grades. When the first -->
+<!--   branch *never* fails, the second is unreachable and the result inherits the -->
+<!--   first's consumption exactly; when it *always* fails, the result inherits the -->
+<!--   second's. Without an error axis, both branches collapse to *may consume*. -->
+<!-- - **More combinators are typeable.** `notFollowedBy` flips the error grade; -->
+<!--   without that axis there is no signature to give it. -->
+<!-- - **Looser preconditions.** Three consumption levels instead of a single bit -->
+<!--   weakens `sepBy`'s requirement from *the element must always consume* -->
+<!--   (agdarsec) to *the separator and the element must consume together*. -->
+<!-- - **Cheaper runtime representation.** `Outcome` is computed by pattern-matching -->
+<!--   on the error grade, so an infallible parser carries no `Sum` tag and an -->
+<!--   always-failing parser cannot even mention the success type. -->
 
 # The Parser type
 
-`Text n` is `List.Vector Char n` — a string whose length is known statically.
-A parser is parameterised by an error type `ε`, a grade `g`, and a result
-type `α`:
+The parser type is parameterised by an error type `ε`, a grade `g`, and a result
+type `α`. Its single field `run` is like a parsec parser, but the input is sized
+so that consumption can be tracked in the type. `Text n` is `List.Vector Char
+n`.
 
 ```lean
 structure Parser (ε : Type) (g : Grade) (α : Type) where
-  run : ∀ {n}, Text n → Outcome ε n g α
+    run : ∀ {n}, Text n → Outcome ε n g α
 ```
 
-The result type is *computed* from the error grade — a small bit of
-type-level pattern matching that pays off:
-
+The result type `Outcome` is computed from the error component of the grade:
 ```lean
 abbrev Outcome (ε : Type) (n : Nat) (g : Grade) (α : Type) :=
   match g.errors with
@@ -447,9 +444,18 @@ abbrev Outcome (ε : Type) (n : Nat) (g : Grade) (α : Type) :=
   | always   => ε
 ```
 
-An infallible parser has no `Sum` overhead at all; an always-failing parser
-cannot even mention the success type. The success result carries a
-*consumption witness* relating the input length and the leftover length:
+Both non-error branches return a `Success`, which bundles the parsed value,
+the leftover input, and a *consumption witness*:
+
+```lean
+structure Success (n : Nat) (consumes : Necessity) (α : Type) where
+  result   : α
+  {restSize : Nat}
+  restText : Text restSize
+  witness  : consumptionWitness restSize n consumes
+```
+
+The witness relates the input length `n` to the leftover length `restSize`:
 
 ```lean
 abbrev consumptionWitness (rest n : Nat) : Necessity → Prop
@@ -458,12 +464,57 @@ abbrev consumptionWitness (rest n : Nat) : Necessity → Prop
   | always   => rest < n
 ```
 
-The `< n` case for `consumes = always` is the load-bearing fact: it makes the
-input strictly decrease at every consuming step, which is what `fix` needs.
+The `< n` case for `consumes = always` is what enables the termination proof for
+the `fix` combinator.
+
+# The `gdo` macro {#gdo}
+
+`do`-notation is a well-established syntax sugar for writing monadic programs.
+Analogously, I have added a `gdo` macro that adapts it to graded monads. The
+`gdo` macro included in prim-parser works for any graded monad, not just the one implemented by the
+parser.
+
+
+The grade `gdo` infers is the literal product of the grades of its constituent
+parsers. For instance, sequencing two parsers of grade `g` yields `g * g`:
+
+<pre><code>def twice (p : Parser ε g α) : Parser ε <span style="color: #1e6fcc; font-weight: bold">(g * g)</span> α := gdo
+  p
+  p
+</code></pre>
+
+This type-checks, but the inferred grade isn't always the one we want to expose.
+On `Grade`, multiplication is idempotent (`Grade.mul_idem : g * g = g`), so
+we'd rather write the cleaner signature:
+
+<pre><code>def twice (p : Parser ε g α) : Parser ε <span style="color: #1e6fcc; font-weight: bold">g</span> α := gdo
+  p
+  p
+</code></pre>
+
+This no longer type-checks on its own: `gdo` produces `Parser ε (g * g) α`, but
+`g * g` doesn't reduce to `g` definitionally. prim-parser provides `gcast` to
+bridge the gap by a proof of grade equality:
+
+```lean
+def gcast (h : i = j) (x : f i α) : f j α := h ▸ x
+```
+
+The `grade_by` clause in a `gdo` block is sugar for wrapping the result in a
+`gcast`:
+
+<pre><code>def twice (p : Parser ε g α) : Parser ε <span style="color: #1e6fcc; font-weight: bold">g</span> α := gdo
+  p
+  p
+  <span style="color: #1e6fcc; font-weight: bold">grade_by by simp</span>
+</code></pre>
+
+`by simp` proves `g * g = g` by using a simp lemma included in the library.
 
 # Examples
 
 TODO redo
+
 Before the examples, a note on `do`-notation. Lean's built-in `do` does not
 type-check on graded monads: `do` assumes a fixed monad, but every `←`
 shifts the surrounding grade by `*`. The library provides a `gdo` macro that
@@ -593,7 +644,7 @@ to bag equality of parse results; the conditional coinduction in `bind`'s
 argument types prevents any typeclass instance, and `choice` is forced to be
 symmetric rather than biased.
 
-**[lean4-parser](https://github.com/fpvandoorn/lean4-parser)** is the
+**[lean4-parser](https://github.com/fgdorais/lean4-parser)** is the
 closest peer in Lean: a `parsec`-style library with a standard `Monad`
 instance and `do`-notation. Termination is opted out of via `partial` for
 unbounded iteration.
