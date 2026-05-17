@@ -217,7 +217,7 @@ in any parser combinator library. For each, we'll look at the signature, describ
 behaviour, and relate it back to the grade. By the end I hope you'll see
 that grades do more than enforce totality; they also help document the
 combinator's behaviour in the type. `fix`, the recursion combinator, has
-its [own section](#guarded-recursion-via-fix).
+its [own section](#fix).
 
 ---
 
@@ -367,7 +367,7 @@ sepBy : (sep : Parser ⟨ge', gc'⟩ β) → (p : Parser ⟨ge, gc⟩ α)
 The constraint `gc' ⊔ gc = always` says the separator and the element
 must consume *together*.
 
-# Guarded recursion via `fix`
+# Guarded recursion via `fix` {#fix}
 
 The `fix` combinator enables recursive parsers:
 
@@ -586,52 +586,56 @@ calculus.
 
 # Related work
 
+In this section I compare prim-parser to three closely related libraries.
+
 | Library         | Total | Monadic | Parsec-style | Left-recursion | Coinduction |
 |-----------------|:-----:|:-------:|:------------:|:--------------:|:-----------:|
+| prim-parser     |   ✓   |   ✓\*   |      ✓       |       ✗        | not needed  |
+| lean4-parser    |   ✗   |    ✓    |      ✓       |       ✗        | not needed  |
 | agdarsec        |   ✓   |    ✗    |      ✓       |       ✗        | not needed  |
 | Danielsson 2010 |   ✓   |   ✓\*   |      ✗       |       ✓        |   needed    |
-| lean4-parser    |   ✗   |    ✓    |      ✓       |       ✗        | not needed  |
-| prim-parser     |   ✓   |   ✓\*   |      ✓       |       ✗        | not needed  |
 
-\* Neither library makes `Parser` an instance of the standard `Monad` typeclass.
-prim-parser's `Parser` is a *graded* monad (`bind`'s grade index changes with
-each step), and a `GradedMonad` instance with monad laws as propositional
-equalities. Danielsson's `Parser` defines a `bind` and proves the monad laws up
-to bag equality of parse results. It cannot be an instance of the standard monad
-because coinduction appears in `bind`'s argument types.
+\* Neither has a standard `Monad` typeclass instance; see the
+[Danielsson](#danielsson) section.
 
 ## [lean4-parser](https://github.com/fgdorais/lean4-parser)
-Both lean4-parser and prim-parser are parsec style libraries and thus share
-the implementation stra
+lean4-parser is the most popular Lean 4 parsing library. Both prim-parser and
+lean4-parser are parsec-style libraries with biased choice and a shallow
+embedding, and on the implementation side they are largely equivalent. The main
+differences are:
 
-is
-the closest peer in Lean: a `parsec`-style library with a standard `Monad`
-instance and `do`-notation. Termination is opted out of via `partial` for
-unbounded iteration.
-
-## [Danielsson 2010](https://dl.acm.org/doi/10.1145/1863543.1863585)
-takes a different route, using mixed induction and coinduction in a deep
-embedding. Grammars are reified as data and parsed via Brzozowski derivatives,
-which supports left recursion — something neither agdarsec nor prim-parser
-handle directly. The cost is that the derivative-based backend is worst-case
-exponential in input length (the paper itself acknowledges this with a concrete
-witness: `p = fail >>= λ b → fail` has *n*th derivative `p | p | … | p` with 2ⁿ
-choices). `bind` exists and the monad laws are proved, but only up to bag
-equality of parse results; the conditional coinduction in `bind`'s argument
-types prevents any typeclass instance, and `choice` is forced to be symmetric
-rather than biased.
+- **Totality.** lean4-parser uses `partial` for unbounded iteration; prim-parser
+  is total.
+- **Recursion.** lean4-parser writes recursive parsers as ordinary Lean
+  recursive definitions (`partial` lets Lean accept them without a termination
+  proof). prim-parser uses an explicit guarded-recursion combinator
+  [`fix`](#fix), whose type forces the recursive call to happen only after
+  consumption.
+- **Types.** prim-parser's types carry a grade tracking error and consumption
+  behavior. lean4-parser's types do not.
+- **Monad vs graded monad.** lean4-parser is a standard `Monad` (and a monad
+  transformer, so it can run on top of `State`, etc.) and works with the
+  built-in `do` notation. prim-parser is a *graded* monad. Instead, it uses a
+  [`gdo`](#gdo) notation that works for any graded monad.
+- **Stream type.** lean4-parser is generic in the input stream; prim-parser
+  currently fixes it to `List.Vector Char n`, but it could easily be generalised
+  to any type that has its length in the type.
+- **Maturity.** lean4-parser is older and has a richer combinator collection and
+  error-message machinery.
 
 ## [agdarsec](https://gitlab.com/gallais/agdarsec)
-sidesteps the termination problem by requiring every successful parse to
-*strictly* consume input, with recursion structured by course-of-values
-induction through a guarded modal operator `□`. The cost: `pure` cannot be given
-the type `Parser`, so `Parser` is not a monad, do-notation is unavailable, and
-even `many` cannot be defined — only `many1`. Code that would be a one-line
-`do`-block in Haskell becomes a tangle of specialised combinators (`<&>`,
-`<&?>`, `<?&>`, ...). The strict-consumption requirement also propagates to
-combinators like `sepBy`, where each individual parser must consume;
-prim-parser's grade-based version only requires that the separator and the
-element consume *together*.
+TODO
+
+## [Danielsson 2010](https://dl.acm.org/doi/10.1145/1863543.1863585) {#danielsson}
+
+- **Monadic**. Both libraries are monadic but neither makes `Parser` an instance
+  of the standard `Monad` typeclass. prim-parser's `Parser` is a a `GradedMonad`
+  instance with monad laws proven as propositional equalities. Danielsson's `Parser`
+  defines a `bind` and proves the monad laws up to bag equality of parse
+  results. It cannot be an instance of the standard `Monad` typeclass because
+  coinduction appears in `bind`'s argument types.
+
+TODO
 
 # What's left
 
