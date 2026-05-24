@@ -626,46 +626,67 @@ implementation side they are largely equivalent. The main differences are:
 
 ## [Danielsson 2010](https://dl.acm.org/doi/10.1145/1863543.1863585) {#danielsson}
 
-- **Monadic**. Both libraries are monadic but neither makes `Parser` an instance
-  of the standard `Monad` typeclass. prim-parser's `Parser` is a a `GradedMonad`
-  instance with monad laws proven as propositional equalities. Danielsson's `Parser`
-  defines a `bind` and proves the monad laws up to bag equality of parse
-  results. It cannot be an instance of the standard `Monad` typeclass because
-  coinduction appears in `bind`'s argument types.
-- **???**. Danielsson
-- **Recursion**. Danielsson
-- **Left recursion**. A production is *left-recursive* when a nonterminal
-  appears as the leftmost symbol on its own right-hand side, like `term ::= term
-  '+' factor` in the grammar below. Danielsson can express many such grammars
-  directly. prim-parser cannot: its parsers are ordinary functions, so a
-  left-recursive parser calls itself before consuming any input, which
-  [guarded recursion](#fix) forbids — the recursive call must be on strictly
-  smaller input.
+- **Monadic**. Both libraries are monadic but neither provides a standard
+  `Monad` instance for `Parser`. prim-parser's `Parser` is a `GradedMonad`
+  instance with monad laws proven as propositional equalities. Danielsson's
+  `Parser` defines a `bind` and proves the monad laws up to bag equality of
+  parse results. It cannot be an instance of the standard `Monad` typeclass
+  because coinduction appears in `bind`'s argument types.
+- **Implementation**. Danielsson uses a deep embedding based on Brzozowski
+  derivatives: a parser is a data structure that is differentiated one token at
+  a time, and running it returns *all* successful parses. prim-parser is a
+  shallow embedding (a function from input to output).
+- **Recursion**. Danielsson uses regular recursion. In prim-parser recursion can
+  only be expressed through the fix combinator.
+- **Errors**. Since Danielsson's parsers return the list of all successful
+  parses, failure is just the empty list, with no way to report why a parse
+  failed. prim-parser, by contrast, supports custom errors.
+- **Left recursion**. A rule like `term ::= term '+' factor` is *left recursive* because
+  the `term` appears at the start of its own definition
+  side. A direct translation loops forever in most parser libraries. prim-parser
+  prevents the loop, but the user must unfold the left recursion into
+  an iterative form, as shown below. This is the case in all parsec-style libraries. Danielsson expresses left-recursive grammars
+  much more directly, but the coinductive arguments must be marked with `♯`.
+  The grammar below is taken directly from Danielsson's paper.
+  ```agda
+  mutual
+  -- term ::= factor | term '+' factor
+    term = factor
+         ∣ ♯ term  >>= λ n₁ →
+           tok '+' >>= λ _  →
+           factor  >>= λ n₂ →
+           return (n₁ + n₂)
 
-```agda
--- term   ::= factor | term '+' factor
--- factor ::= atom   | factor '*' atom
--- atom   ::= number | '(' term ')'
-mutual
-  term = factor
-       ∣ ♭ term  >>= λ n₁ →
-         tok '+' >>= λ _  →
-         factor  >>= λ n₂ →
-         return (n₁ + n₂)
+  -- factor ::= atom | factor '*' atom
+    factor = atom
+           ∣ ♯ factor >>= λ n₁ →
+             tok '*'  >>= λ _  →
+             atom     >>= λ n₂ →
+             return (n₁ * n₂)
 
-  factor = atom
-         ∣ ♭ factor >>= λ n₁ →
-           tok '*'  >>= λ _  →
-           atom     >>= λ n₂ →
-           return (n₁ * n₂)
+  -- atom ::= number | '(' term ')'
+    atom = number
+         ∣ tok '(' >>= λ _ →
+           ♯ term  >>= λ n →
+           tok ')' >>= λ _ →
+           return n
+  ```
 
-  atom = number
-       ∣ tok '(' >>= λ _ →
-         ♭ term  >>= λ n →
-         tok ')' >>= λ _ →
-         return n
-```
-- **Errors**. Danielsson has no support for errors
+  In prim-parser the same grammar is expressed with the `chainl1` combinator.
+
+  ```lean
+  def addOp : Parser Error conditional (Nat → Nat → Nat) :=
+    (· + ·) <$ᵍ char '+'
+
+  def mulOp : Parser Error conditional (Nat → Nat → Nat) :=
+    (· * ·) <$ᵍ char '*'
+
+  def term : Parser Error conditional Nat :=
+    fix (fun term_rec =>
+      let atom   := nat <|> parens term_rec
+      let factor := chainl1 mulOp atom
+      chainl1 addOp factor)
+  ```
 
 ## [agdarsec](https://gitlab.com/gallais/agdarsec)
 [agdarsec](https://gitlab.com/gallais/agdarsec) and its ports
