@@ -416,8 +416,8 @@ The result type `Outcome` is computed from the error component of the grade:
 abbrev Outcome (ε : Type) (n : Nat) (g : Grade) (α : Type) :=
   match g.errors with
   | never    => Success n g.consumes α
-  | possibly => ε ⊕ Success n g.consumes α
-  | always   => ε
+  | possibly => Failure n ε ⊕ Success n g.consumes α
+  | always   => Failure n ε
 ```
 
 Both non-error branches return a `Success`, which bundles the parsed value,
@@ -431,7 +431,7 @@ structure Success (n : Nat) (consumes : Necessity) (α : Type) where
   witness  : consumptionWitness restSize n consumes
 ```
 
-The witness relates the input length `n` to the leftover length `restSize`:
+The witness relates the input length `n` to the remaining input length `restSize`:
 
 ```lean
 abbrev consumptionWitness (rest n : Nat) : Necessity → Prop
@@ -443,6 +443,16 @@ abbrev consumptionWitness (rest n : Nat) : Necessity → Prop
 The `< n` case for `consumes = always` is what enables the termination proof for
 the `fix` combinator.
 
+The error branches return a `Failure`:
+
+```lean
+structure Failure (n : Nat) (ε : Type) where
+  error    : ε
+  {restSize : Nat}
+  restText : Text restSize
+  witness  : restSize ≤ n
+```
+
 # The `gdo` macro {#gdo}
 
 `do`-notation is a well-established syntax sugar for writing monadic programs.
@@ -451,7 +461,7 @@ The `gdo` macro included in prim-parser works for any graded monad, not just the
 one implemented by the parser. Eventually the `gdo` macro should be published
 independently of prim-parser.
 
-The `gdo` macro just sequences statements with `gbind`. As we say, the return
+The `gdo` macro just sequences statements with `gbind`. As we saw, the return
 type of `gbind` is graded by the product of its arguments grades. For instance,
 sequencing two parsers of grade `g` yields `g * g`:
 
@@ -460,14 +470,14 @@ sequencing two parsers of grade `g` yields `g * g`:
   p
 </code></pre>
 
-This type-checks, but the inferred grade `g * g` isn't the one we want to expose.
+This type-checks, but the inferred grade `g * g` isn't the one we want to write in the signature.
 We want to have:
 
 <pre><code>def twice (p : Parser ε g α) : Parser ε <span style="color: #1e6fcc; font-weight: bold">g</span> α := ...
 </code></pre>
 
 This no longer type-checks on its own because `g * g` is not definitionally
-equal to `g`. prim-parser provides `gcast`; a specialised substitution for the
+equal to `g`. To solve this, prim-parser provides `gcast`; a specialised substitution for the
 grade of the monad:
 
 ```lean
@@ -476,25 +486,19 @@ def gcast (h : i = j) (x : m i α) : m j α := h ▸ x
 
 We can apply `gcast` directly to the `gdo` block:
 
-<pre><code>def twice (p : Parser ε g α) : Parser ε <span style="color: #1e6fcc; font-weight: bold">g</span> α := gcast (by simp) <| gdo
+<pre><code>def twice (p : Parser ε g α) : Parser ε g α := <span style="color: #d97706; font-weight: bold">gcast (by simp) <|</span> gdo
   p
   p
 </code></pre>
 
 `by simp` proves `g * g = g` by using a simp lemma included in the library.
+This is a very common pattern, so I included some syntax sygar that makes it more pleasant to read and write. It's called `grade_by` and it optionally comes at the end of a `gdo` block. The definition below is the same as the definition above:
 
-The `grade_by` clause in a `gdo` block is sugar for exactly this `gcast`
-wrapping, but written at the end of the block:
-
-<pre><code>def twice (p : Parser ε g α) : Parser ε <span style="color: #1e6fcc; font-weight: bold">g</span> α := gdo
+<pre><code>def twice (p : Parser ε g α) : Parser ε g α := gdo
   p
   p
-  <span style="color: #1e6fcc; font-weight: bold">grade_by by simp</span>
+  <span style="color: #d97706; font-weight: bold">grade_by by simp</span>
 </code></pre>
-
-Writing `grade_by` at the end lets you append the proof after the block already
-type-checks at its inferred grade and it keeps the layout clean without wrapping
-the whole `gdo` in `gcast (…) <| …`.
 
 # Examples
 
@@ -600,19 +604,16 @@ In this section I compare prim-parser to three closely related libraries.
 
 ## [lean4-parser](https://github.com/fgdorais/lean4-parser)
 lean4-parser is the most popular Lean 4 parsing library. Both prim-parser and
-lean4-parser are parsec-style libraries with biased choice and a shallow
-embedding, and on the implementation side they are largely equivalent. The main
-differences are:
+lean4-parser are parsec-style libraries with a shallow embedding, and on the
+implementation side they are largely equivalent. The main differences are:
 
-- **Totality.** lean4-parser uses `partial` for unbounded iteration; prim-parser
+- **Totality.** lean4-parser uses `partial` for unchecked recursion; prim-parser
   is total.
 - **Recursion.** lean4-parser writes recursive parsers as ordinary Lean
   recursive definitions (`partial` lets Lean accept them without a termination
   proof). prim-parser uses an explicit guarded-recursion combinator
   [`fix`](#fix), whose type forces the recursive call to happen only after
   consumption.
-- **Types.** prim-parser's types carry a grade tracking error and consumption
-  behavior. lean4-parser's types do not.
 - **Monad vs graded monad.** lean4-parser is a standard `Monad` (and a monad
   transformer, so it can run on top of `State`, etc.) and works with the
   built-in `do` notation. prim-parser is a *graded* monad. Instead, it uses a
@@ -624,7 +625,10 @@ differences are:
   error-message machinery.
 
 ## [agdarsec](https://gitlab.com/gallais/agdarsec)
-TODO
+[agdarsec](https://gitlab.com/gallais/agdarsec) and its ports
+[tparsec](https://github.com/gallais/idris-tparsec) and
+[parseque](https://github.com/rocq-community/parseque) are the only
+implementations of a total parser combinator library with practical use.
 
 ## [Danielsson 2010](https://dl.acm.org/doi/10.1145/1863543.1863585) {#danielsson}
 
@@ -645,7 +649,7 @@ TODO
   `parsec`-style) is doable.
 - **Generic input type.** The input is currently fixed to `List.Vector Char n`.
   Generalising to an arbitrary sized type is straightforward.
-- **Expore monad transformers.**.
+- **Expore monad transformers.**
 - **Split out graded monads.** The `GradedFunctor` / `GradedApplicative` / `GradedMonad`
   hierarchy and their lawful counterparts have nothing to do with parsers;
   they belong either in mathlib or in their own library.
