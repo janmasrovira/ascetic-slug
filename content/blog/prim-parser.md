@@ -604,8 +604,9 @@ In this section I compare prim-parser to three closely related libraries.
 
 ## [lean4-parser](https://github.com/fgdorais/lean4-parser)
 lean4-parser is the most popular Lean 4 parsing library. Both prim-parser and
-lean4-parser are parsec-style libraries with a shallow embedding, and on the
-implementation side they are largely equivalent. The main differences are:
+lean4-parser are parsec-style and use the same shallow embedding (a parser is
+just a function from the input to a result), run by applying it. In that
+sense the two are essentially the same under the hood. The main differences are:
 
 - **Totality.** lean4-parser uses `partial` for unchecked recursion; prim-parser
   is total.
@@ -693,8 +694,151 @@ implementation side they are largely equivalent. The main differences are:
 [tparsec](https://github.com/gallais/idris-tparsec) and
 [parseque](https://github.com/rocq-community/parseque) are the only
 implementations of a total parser combinator library with practical use.
-However, they don't offer a monadic interface, instead, they offer a collection
-of custom combinators
+However, they don't offer a monadic interface; instead they provide a collection
+of combinators for sequencing parsers. agdarsec, for example, has a whole family
+of sequencing combinators that differ only in what they keep and whether either
+side is optional. They are just plumbing: in prim-parser the monadic interface
+makes them unnecessary, since each is an ordinary `gdo` block that binds the
+intermediate results and packages them as needed (`optional` yields `Option`,
+Agda's `Maybe`).
+
+---
+
+**`_>>=_ : Parser a → (a → Parser b) → Parser b`**:
+
+```lean
+gdo
+  let x ← p
+  f x
+```
+
+---
+
+**`_&>>=_ : Parser a → (a → Parser (b a)) → Parser (Σ a b)`**:
+
+```lean
+gdo
+  let x ← p
+  let y ← f x
+  return ⟨x, y⟩
+```
+
+---
+
+**`_&>>=′_ : Parser a → (a → Parser b) → Parser (a × b)`**:
+
+```lean
+gdo
+  let x ← p
+  let y ← f x
+  return (x, y)
+```
+
+---
+
+**`_&?>>=_ : Parser a → (a → Parser (b a)) → Parser (Σ a (Maybe ∘ b))`** makes the second parser optional:
+
+```lean
+gdo
+  let x ← p
+  let y ← optional (f x)
+  return ⟨x, y⟩
+```
+
+---
+
+**`_?&>>=_ : Parser a → (Maybe a → Parser b) → Parser (Maybe a × b)`** makes the first parser optional:
+
+```lean
+gdo
+  let x ← optional p
+  let y ← f x
+  return (x, y)
+```
+
+---
+
+**`_<&?>_ : Parser a → Parser b → Parser (a × Maybe b)`**:
+
+```lean
+gdo
+  let x ← p
+  let y ← optional q
+  return (x, y)
+```
+
+---
+
+**`_<&?_ : Parser a → Parser b → Parser a`**:
+
+```lean
+gdo
+  let x ← p
+  optional q
+  return x
+```
+
+---
+
+**`_&?>_ : Parser a → Parser b → Parser (Maybe b)`**:
+
+```lean
+gdo
+  p
+  optional q
+```
+
+---
+
+**`_<?&>_ : Parser a → Parser b → Parser (Maybe a × b)`**:
+
+```lean
+gdo
+  let x ← optional p
+  let y ← q
+  return (x, y)
+```
+
+---
+
+**`_<?&_ : Parser a → Parser b → Parser (Maybe a)`**:
+
+```lean
+gdo
+  let x ← optional p
+  q
+  return x
+```
+
+---
+
+**`_?&>_ : Parser a → Parser b → Parser b`**:
+
+```lean
+gdo
+  optional p
+  q
+```
+
+---
+
+**`_<⊎>_ : Parser a → Parser b → Parser (a ⊎ b)`**:
+
+```lean
+(Sum.inl <$>ᵍ p) <|> (Sum.inr <$>ᵍ q)
+```
+
+---
+
+**`<[_,_]> : (a → r) → (b → Parser r) → Parser (a ⊎ b) → Parser r`**:
+
+```lean
+gdo
+  let x ← pab
+  match x with
+  | .inl a => return (f a)
+  | .inr b => k b
+```
 
 # What's left
 
