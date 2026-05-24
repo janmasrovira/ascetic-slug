@@ -624,12 +624,6 @@ implementation side they are largely equivalent. The main differences are:
 - **Maturity.** lean4-parser is older and has a richer combinator collection and
   error-message machinery.
 
-## [agdarsec](https://gitlab.com/gallais/agdarsec)
-[agdarsec](https://gitlab.com/gallais/agdarsec) and its ports
-[tparsec](https://github.com/gallais/idris-tparsec) and
-[parseque](https://github.com/rocq-community/parseque) are the only
-implementations of a total parser combinator library with practical use.
-
 ## [Danielsson 2010](https://dl.acm.org/doi/10.1145/1863543.1863585) {#danielsson}
 
 - **Monadic**. Both libraries are monadic but neither makes `Parser` an instance
@@ -638,8 +632,48 @@ implementations of a total parser combinator library with practical use.
   defines a `bind` and proves the monad laws up to bag equality of parse
   results. It cannot be an instance of the standard `Monad` typeclass because
   coinduction appears in `bind`'s argument types.
+- **???**. Danielsson
+- **Recursion**. Danielsson
+- **Left recursion**. A production is *left-recursive* when a nonterminal
+  appears as the leftmost symbol on its own right-hand side, like `term ::= term
+  '+' factor` in the grammar below. Danielsson can express many such grammars
+  directly. prim-parser cannot: its parsers are ordinary functions, so a
+  left-recursive parser calls itself before consuming any input, which
+  [guarded recursion](#fix) forbids — the recursive call must be on strictly
+  smaller input.
 
-TODO
+```agda
+-- term   ::= factor | term '+' factor
+-- factor ::= atom   | factor '*' atom
+-- atom   ::= number | '(' term ')'
+mutual
+  term = factor
+       ∣ ♭ term  >>= λ n₁ →
+         tok '+' >>= λ _  →
+         factor  >>= λ n₂ →
+         return (n₁ + n₂)
+
+  factor = atom
+         ∣ ♭ factor >>= λ n₁ →
+           tok '*'  >>= λ _  →
+           atom     >>= λ n₂ →
+           return (n₁ * n₂)
+
+  atom = number
+       ∣ tok '(' >>= λ _ →
+         ♭ term  >>= λ n →
+         tok ')' >>= λ _ →
+         return n
+```
+- **Errors**. Danielsson has no support for errors
+
+## [agdarsec](https://gitlab.com/gallais/agdarsec)
+[agdarsec](https://gitlab.com/gallais/agdarsec) and its ports
+[tparsec](https://github.com/gallais/idris-tparsec) and
+[parseque](https://github.com/rocq-community/parseque) are the only
+implementations of a total parser combinator library with practical use.
+However, they don't offer a monadic interface, instead, they offer a collection
+of custom combinators
 
 # What's left
 
