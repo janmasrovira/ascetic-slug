@@ -14,10 +14,10 @@ In this post I present
 monadic parser combinator library in the
 [parsec](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/parsec-paper-letter.pdf)
 tradition. To the best of my knowledge, it is the first of its kind. To ensure
-totality, every parser carries a *grade* recording whether it *may*, *must*, or
-*cannot* consume input, and whether it *may*, *must*, or *cannot* fail; the
-Parser type is a graded monad over these grades. The graded monad laws are
-proven as propositional equalities.
+totality, every parser is tagged with a *grade* recording whether it *may*,
+*must*, or *cannot* consume input, and whether it *may*, *must*, or *cannot*
+fail; the Parser type is a graded monad over these grades. The graded monad laws
+are proven as propositional equalities.
 
 # Introduction
 
