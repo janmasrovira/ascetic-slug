@@ -707,11 +707,13 @@ sense the two are essentially the same under the hood. The main differences are:
   ```
 
 ## [agdarsec](https://gitlab.com/gallais/agdarsec) {#agdarsec}
-[agdarsec](https://gitlab.com/gallais/agdarsec) and its ports
-[tparsec](https://github.com/gallais/idris-tparsec) and
-[parseque](https://github.com/rocq-community/parseque) are the only
+To the best of my knowledge, [agdarsec](https://gitlab.com/gallais/agdarsec) and
+its ports [tparsec](https://github.com/gallais/idris-tparsec) (Idris) and
+[parseque](https://github.com/rocq-community/parseque) (Rocq) are the only
 implementations of a total parser combinator that have seen some practical
 adoption.
+
+TODO remove paragraph below
 
 Recursion is guarded by a modal operator `□`. The type `□ Parser` encapsulates a
 parser which can only be called on input strictly smaller than the input the
@@ -725,17 +727,25 @@ that returns a constant value and never consumes cannot be defined, which blocks
 a monad instance. As we will see in the [connectors](#connectors) section, this
 degrades usability considerably.
 
+Other parsers that cannot be defined in agdarsec include:
+- zero or more repetition: `many`, `skipMany`, `sepBy`, `manyTill`, etc.
+- `optional`.
+- `lookahead`, `notFollowedBy`.
+- `eof` (end of input), `getPosition`.
+
 ### agdarsec connectors vs prim-parser's `gdo` notation {#connectors}
 
 The lack of a monadic interface forces agdarsec to provide a big collection of
 connectors to work around the limitation. These connectors add no meaning to the
-parser, and the user must remember all of them (use mnemonic names makes it a
-bit simpler, but still annoying).
+parser, and the user must remember all of them (use of mnemonic names makes it a
+bit simpler, but still non-trivial).
 
 Below I list most of agdarsec's connectors, each paired with its prim-parser
 `gdo` equivalent. Although `gdo` is more verbose and needs explicit local
 bindings, it replaces the whole collection of connectors with one notation that
 functional programmers are already familiar with, making it far more ergonomic.
+Moreover, `gdo` is a generic macro that works for any graded monad, not just
+prim-parser's.
 
 ---
 
@@ -951,6 +961,40 @@ gdo
   match x with
   | .inl a => return (f a)
   | .inr b => k b
+```
+
+### A full example: S-expressions {#sexp-comparison}
+
+To see the difference on a real example, here is a complete S-expression parser
+in each library, taken almost verbatim (comments have been stripped) from the
+respective repositories.
+
+agdarsec ([`examples/SExp.agda`](https://github.com/gallais/agdarsec/blob/28c5233/examples/SExp.agda)):
+```agda
+sexp : ∀[ Parser SExp ]
+sexp = fix (Parser SExp) $ λ rec →
+  let atom = Atom ∘ String.fromList ∘ List⁺.toList <$> list⁺ alpha
+      sexp = (λ (a , mb) → maybe (Pair a) a mb)
+             <$> parens (lift2 (λ p q → withSpaces p <&?> box (q <&? box spaces))
+                               rec rec)
+  in atom <|> sexp
+```
+
+prim-parser ([`Examples/SExp.lean`](https://github.com/janmasrovira/prim-parser/blob/bc8b8fb/Examples/SExp.lean)):
+```lean
+def patom : Parser Error conditional SExp :=
+  .atom <$>ᵍ takeWhile1 (·.isAlphanum)
+
+def sexp : Parser Error conditional SExp :=
+  fix (fun sexp_rec =>
+    let plist : Parser Error conditional SExp := gdo
+      lexeme (char '(')
+      let first ← sexp_rec
+      let rest  ← many (gdo whitespace; sexp_rec)
+      lexeme (char ')')
+      return listToPairs (first :: rest)
+      grade_by by simp
+    choice patom plist)
 ```
 
 # Future work {#whats-left}
