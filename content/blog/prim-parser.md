@@ -642,6 +642,12 @@ sense the two are essentially the same under the hood. The main differences are:
 - **Errors**. Since Danielsson's parsers return the list of all successful
   parses, failure is just the empty list, with no way to report why a parse
   failed. prim-parser, by contrast, supports custom errors.
+- **Practical use**. The [code](https://github.com/nad/parser-combinators) is
+  published as the artifact accompanying the paper rather than as a library
+  meant for everyday use. It seems to me like the main purpose of the repo is to
+  implement the theory presented in the paper, rather than to be a library for
+  mainstream use. This is the reason I count agdarsec, and not Danielsson's
+  library, as the only practical total parser combinator library.
 - **Left recursion**. A rule like `term ::= term '+' factor` is *left recursive* because
   the `term` appears at the start of its own definition
   side. A direct translation loops forever in most parser libraries. prim-parser
@@ -693,10 +699,34 @@ sense the two are essentially the same under the hood. The main differences are:
 [agdarsec](https://gitlab.com/gallais/agdarsec) and its ports
 [tparsec](https://github.com/gallais/idris-tparsec) and
 [parseque](https://github.com/rocq-community/parseque) are the only
-implementations of a total parser combinator library with practical use.
-However, they don't offer a monadic interface; instead they provide a collection
-of combinators for sequencing parsers. agdarsec, for example, has a whole family
-of sequencing combinators that differ only in what they keep and whether either
+implementations of a total parser combinator that have seen some practical
+adoption.
+
+In agdarsec every parser must consume input to succeed. A parser's type is
+indexed by the size of the remaining input, and a successful parse must return
+the remaining input, which must be smaller than the original input.
+
+Recursion is guarded by a modal operator `□`. The type `□ Parser` encapsulates a
+parser which can only be called on input strictly smaller than the input the
+enclosing parser was given. Recursive
+parsers are built with a `fix` combinator whose recursive handle is boxed in
+`□`. The recursive call can thus only fire after some input has been consumed —
+the same discipline prim-parser's [`fix`](#fix) imposes, but reflected directly
+in the types. Because the recursive occurrence sits behind a `□`, agdarsec
+rejects left-recursive grammars at type-check time, exactly as prim-parser does.
+(`□` is the "later" modality of guarded recursion; over the input size it
+amounts to course-of-values recursion, where the recursive call may use the
+result at *any* smaller size, not just the predecessor.)
+
+```agda
+fix : ∀ {l} (A : ℕ → Set l) → ∀[ □ A ⇒ A ] → ∀[ A ]
+```
+
+Here `∀[ A ] = ∀ {n} → A n` quantifies over every input size, so the argument
+`∀[ □ A ⇒ A ]` builds the result at size `n` from the boxed result at every
+smaller size. Instantiating `A` with `Parser B` gives the recursive handle type
+`□ Parser B`.
+
 side is optional. They are just plumbing: in prim-parser the monadic interface
 makes them unnecessary, since each is an ordinary `gdo` block that binds the
 intermediate results and packages them as needed (`optional` yields `Option`,
