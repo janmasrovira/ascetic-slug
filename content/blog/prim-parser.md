@@ -19,7 +19,7 @@ totality, every parser is tagged with a *grade* recording whether it *may*,
 fail; the Parser type is a graded monad over these grades. The graded monad laws
 are proven as propositional equalities.
 
-# Introduction
+# Introduction {#introduction}
 
 Monadic parser combinators are a popular tool in functional programming. A small
 set of higher-order functions and do-notation is enough to assemble parsers for
@@ -83,7 +83,7 @@ parser combinator library based on Brzozowski derivatives, but the approach has
 not seen practical adoption. I'll compare prim-parser to both in the [Related
 work](#related-work) section.
 
-# Original contributions
+# Original contributions {#contributions}
 
 To the best of my knowledge:
 
@@ -102,7 +102,20 @@ To the best of my knowledge:
    Danielsson's approach uses [sized types](https://agda.readthedocs.io/en/latest/language/sized-types.html) and mixed induction/coinduction,
    which Lean does not support.
 
-# The grade
+**The rest of the post.**
+- [The grade](#the-grade) Introduces the grade prim-parser uses for the parser type.
+- [Graded monad](#graded-monad) shows how grades compose, making `Parser` a
+  graded monad.
+- [Combinators](#combinators) is a tour of the standard parser combinators with graded types.
+- [Guarded recursion via `fix`](#fix) explains recursive parsers.
+- [The Parser type](#the-parser-type) explains the parser type in more detail.
+- [The `gdo` macro](#gdo) describes the graded version of `do`-notation.
+- [Examples](#examples) presents implementations of S-expressions and CSV parsers.
+- [Related work](#related-work) compares prim-parser to lean4-parser, Danielsson
+  2010, and agdarsec.
+- [Future work](#whats-left).
+
+# The grade {#the-grade}
 
 The grade tracks two pieces of static information about a parser:
 
@@ -172,7 +185,7 @@ is more expressive than that. As we will see in the
 [Combinators](#combinators) section, this allows giving precise types to
 combinators that a simpler grade could not.
 
-# Graded monad
+# Graded monad {#graded-monad}
 
 We just saw how grades multiply when parsers run in sequence. That's what
 `gbind` does, and `gpure` carries the unit grade. With `g g' : Grade`:
@@ -210,7 +223,7 @@ in the right column, and those identities follow from the monoid laws on
 
 [katsumata]: https://dl.acm.org/doi/10.1145/2535838.2535846
 
-# Combinators
+# Combinators {#combinators}
 
 This section is a tour of the common parser combinators you'd expect to find
 in any parser combinator library. For each, we'll look at the signature, describe the
@@ -399,7 +412,7 @@ occurrences), the third parser `char ')'` always consumes. It obviously follows
 that the sequence of the parsers is always consuming and thus we've provided a
 valid argument for `fix`.
 
-# The Parser type
+# The Parser type {#the-parser-type}
 
 The parser type is parameterised by an error type `ε`, a grade `g`, and a result
 type `α`. Its single field `run` is like a parsec parser, but the input is sized
@@ -500,14 +513,14 @@ This is a very common pattern, so I included some syntax sygar that makes it mor
   <span style="color: #d97706; font-weight: bold">grade_by by simp</span>
 </code></pre>
 
-# Examples
+# Examples {#examples}
 
 This section presents two examples: S-expressions and CSV. The
 [`Examples/`](https://github.com/janmasrovira/prim-parser/tree/bc8b8fb/Examples)
 directory in the repo has a few more parsers in the same style: arithmetic
 expressions (with operator precedence), JSON, and the untyped lambda calculus.
 
-## S-expressions
+## S-expressions {#sexp}
 
 [*Source: `Examples/SExp.lean`*](https://github.com/janmasrovira/prim-parser/blob/bc8b8fb/Examples/SExp.lean)
 
@@ -544,7 +557,7 @@ def sexp : Parser Error conditional SExp :=
     choice patom plist)
 ```
 
-## CSV
+## CSV {#csv}
 
 [*Source: `Examples/Csv.lean`*](https://github.com/janmasrovira/prim-parser/blob/bc8b8fb/Examples/Csv.lean)
 
@@ -588,7 +601,7 @@ directory has a few more parsers in the same style: arithmetic expressions
 (with operator precedence), JSON, and the untyped lambda
 calculus.
 
-# Related work
+# Related work {#related-work}
 
 In this section I compare prim-parser to three closely related libraries.
 
@@ -602,7 +615,7 @@ In this section I compare prim-parser to three closely related libraries.
 \* Neither has a standard `Monad` typeclass instance; see the
 [Danielsson](#danielsson) section.
 
-## [lean4-parser](https://github.com/fgdorais/lean4-parser)
+## [lean4-parser](https://github.com/fgdorais/lean4-parser) {#lean4-parser}
 lean4-parser is the most popular Lean 4 parsing library. Both prim-parser and
 lean4-parser are parsec-style and use the same shallow embedding (a parser is
 just a function from the input to a result), run by applying it. In that
@@ -620,10 +633,8 @@ sense the two are essentially the same under the hood. The main differences are:
   built-in `do` notation. prim-parser is a *graded* monad. Instead, it uses a
   [`gdo`](#gdo) notation that works for any graded monad.
 - **Stream type.** lean4-parser is generic in the input stream; prim-parser
-  currently fixes it to `List.Vector Char n`, but it could easily be generalised
-  to any type that has its length in the type.
-- **Maturity.** lean4-parser is older and has a richer combinator collection and
-  error-message machinery.
+  currently only supports `List.Vector Char n`, but it could easily be
+  generalised to any type that has its length in the type.
 
 ## [Danielsson 2010](https://dl.acm.org/doi/10.1145/1863543.1863585) {#danielsson}
 
@@ -635,22 +646,22 @@ sense the two are essentially the same under the hood. The main differences are:
   because coinduction appears in `bind`'s argument types.
 - **Implementation**. Danielsson uses a deep embedding based on Brzozowski
   derivatives: a parser is a data structure that is differentiated one token at
-  a time, and running it returns *all* successful parses. prim-parser is a
+  a time, and running it returns all successful parses. prim-parser is a
   shallow embedding (a function from input to output).
+
+  Danielsson needs the language to support mixed induction and
+  coinduction. Thus, it cannot be ported to Lean.
 - **Recursion**. Danielsson uses regular recursion. In prim-parser recursion can
   only be expressed through the fix combinator.
 - **Errors**. Since Danielsson's parsers return the list of all successful
   parses, failure is just the empty list, with no way to report why a parse
   failed. prim-parser, by contrast, supports custom errors.
 - **Practical use**. The [code](https://github.com/nad/parser-combinators) is
-  published as the artifact accompanying the paper rather than as a library
-  meant for everyday use. It seems to me like the main purpose of the repo is to
-  implement the theory presented in the paper, rather than to be a library for
-  mainstream use. This is the reason I count agdarsec, and not Danielsson's
-  library, as the only practical total parser combinator library.
+  published as the artifact accompanying three publications. It seems to me like
+  the main purpose of the repo is to implement the theory presented in the
+  papers, rather than to be a library for mainstream use.
 - **Left recursion**. A rule like `term ::= term '+' factor` is *left recursive* because
-  the `term` appears at the start of its own definition
-  side. A direct translation loops forever in most parser libraries. prim-parser
+  the `term` appears at the start of its own definition. A direct translation loops forever in most parser libraries. prim-parser
   prevents the loop, but the user must unfold the left recursion into
   an iterative form, as shown below. This is the case in all parsec-style libraries. Danielsson expresses left-recursive grammars
   much more directly, but the coinductive arguments must be marked with `♯`.
@@ -695,47 +706,47 @@ sense the two are essentially the same under the hood. The main differences are:
       chainl1 addOp factor)
   ```
 
-## [agdarsec](https://gitlab.com/gallais/agdarsec)
+## [agdarsec](https://gitlab.com/gallais/agdarsec) {#agdarsec}
 [agdarsec](https://gitlab.com/gallais/agdarsec) and its ports
 [tparsec](https://github.com/gallais/idris-tparsec) and
 [parseque](https://github.com/rocq-community/parseque) are the only
 implementations of a total parser combinator that have seen some practical
 adoption.
 
-In agdarsec every parser must consume input to succeed. A parser's type is
-indexed by the size of the remaining input, and a successful parse must return
-the remaining input, which must be smaller than the original input.
-
 Recursion is guarded by a modal operator `□`. The type `□ Parser` encapsulates a
 parser which can only be called on input strictly smaller than the input the
-enclosing parser was given. Recursive
-parsers are built with a `fix` combinator whose recursive handle is boxed in
-`□`. The recursive call can thus only fire after some input has been consumed —
-the same discipline prim-parser's [`fix`](#fix) imposes, but reflected directly
-in the types. Because the recursive occurrence sits behind a `□`, agdarsec
-rejects left-recursive grammars at type-check time, exactly as prim-parser does.
-(`□` is the "later" modality of guarded recursion; over the input size it
-amounts to course-of-values recursion, where the recursive call may use the
-result at *any* smaller size, not just the predecessor.)
+enclosing parser was given. Recursive parsers are built with a `fix` combinator
+whose recursive handle is boxed in `□`. Full details can be found in the
+[agdarsec paper](https://gallais.github.io/pdf/agdarsec18.pdf).
 
-```agda
-fix : ∀ {l} (A : ℕ → Set l) → ∀[ □ A ⇒ A ] → ∀[ A ]
-```
+In agdarsec every parser must consume input to succeed. This means that
+non-consuming parsers cannot be defined. In particular, the `pure` parser
+that returns a constant value and never consumes cannot be defined, which blocks
+a monad instance. As we will see in the [connectors](#connectors) section, this
+degrades usability considerably.
 
-Here `∀[ A ] = ∀ {n} → A n` quantifies over every input size, so the argument
-`∀[ □ A ⇒ A ]` builds the result at size `n` from the boxed result at every
-smaller size. Instantiating `A` with `Parser B` gives the recursive handle type
-`□ Parser B`.
+### agdarsec connectors vs prim-parser's `gdo` notation {#connectors}
 
-side is optional. They are just plumbing: in prim-parser the monadic interface
-makes them unnecessary, since each is an ordinary `gdo` block that binds the
-intermediate results and packages them as needed (`optional` yields `Option`,
-Agda's `Maybe`).
+The lack of a monadic interface forces agdarsec to provide a big collection of
+connectors to work around the limitation. These connectors add no meaning to the
+parser, and the user must remember all of them (use mnemonic names makes it a
+bit simpler, but still annoying).
+
+Below I list most of agdarsec's connectors, each paired with its prim-parser
+`gdo` equivalent. Although `gdo` is more verbose and needs explicit local
+bindings, it replaces the whole collection of connectors with one notation that
+functional programmers are already familiar with, making it far more ergonomic.
 
 ---
 
 **`_>>=_ : Parser a → (a → Parser b) → Parser b`**:
 
+agdarsec:
+```agda
+p >>= f
+```
+
+prim-parser:
 ```lean
 gdo
   let x ← p
@@ -746,6 +757,12 @@ gdo
 
 **`_&>>=_ : Parser a → (a → Parser (b a)) → Parser (Σ a b)`**:
 
+agdarsec:
+```agda
+p &>>= f
+```
+
+prim-parser:
 ```lean
 gdo
   let x ← p
@@ -757,6 +774,12 @@ gdo
 
 **`_&>>=′_ : Parser a → (a → Parser b) → Parser (a × b)`**:
 
+agdarsec:
+```agda
+p &>>=′ f
+```
+
+prim-parser:
 ```lean
 gdo
   let x ← p
@@ -768,6 +791,12 @@ gdo
 
 **`_&?>>=_ : Parser a → (a → Parser (b a)) → Parser (Σ a (Maybe ∘ b))`** makes the second parser optional:
 
+agdarsec:
+```agda
+p &?>>= f
+```
+
+prim-parser:
 ```lean
 gdo
   let x ← p
@@ -779,6 +808,12 @@ gdo
 
 **`_?&>>=_ : Parser a → (Maybe a → Parser b) → Parser (Maybe a × b)`** makes the first parser optional:
 
+agdarsec:
+```agda
+p ?&>>= f
+```
+
+prim-parser:
 ```lean
 gdo
   let x ← optional p
@@ -790,6 +825,12 @@ gdo
 
 **`_<&?>_ : Parser a → Parser b → Parser (a × Maybe b)`**:
 
+agdarsec:
+```agda
+p <&?> q
+```
+
+prim-parser:
 ```lean
 gdo
   let x ← p
@@ -801,6 +842,12 @@ gdo
 
 **`_<&?_ : Parser a → Parser b → Parser a`**:
 
+agdarsec:
+```agda
+p <&? q
+```
+
+prim-parser:
 ```lean
 gdo
   let x ← p
@@ -812,6 +859,12 @@ gdo
 
 **`_&?>_ : Parser a → Parser b → Parser (Maybe b)`**:
 
+agdarsec:
+```agda
+p &?> q
+```
+
+prim-parser:
 ```lean
 gdo
   p
@@ -822,6 +875,12 @@ gdo
 
 **`_<?&>_ : Parser a → Parser b → Parser (Maybe a × b)`**:
 
+agdarsec:
+```agda
+p <?&> q
+```
+
+prim-parser:
 ```lean
 gdo
   let x ← optional p
@@ -833,6 +892,12 @@ gdo
 
 **`_<?&_ : Parser a → Parser b → Parser (Maybe a)`**:
 
+agdarsec:
+```agda
+p <?& q
+```
+
+prim-parser:
 ```lean
 gdo
   let x ← optional p
@@ -844,6 +909,12 @@ gdo
 
 **`_?&>_ : Parser a → Parser b → Parser b`**:
 
+agdarsec:
+```agda
+p ?&> q
+```
+
+prim-parser:
 ```lean
 gdo
   optional p
@@ -854,6 +925,12 @@ gdo
 
 **`_<⊎>_ : Parser a → Parser b → Parser (a ⊎ b)`**:
 
+agdarsec:
+```agda
+p <⊎> q
+```
+
+prim-parser:
 ```lean
 (Sum.inl <$>ᵍ p) <|> (Sum.inr <$>ᵍ q)
 ```
@@ -862,6 +939,12 @@ gdo
 
 **`<[_,_]> : (a → r) → (b → Parser r) → Parser (a ⊎ b) → Parser r`**:
 
+agdarsec:
+```agda
+<[ f , k ]> pab
+```
+
+prim-parser:
 ```lean
 gdo
   let x ← pab
@@ -870,7 +953,7 @@ gdo
   | .inr b => k b
 ```
 
-# What's left
+# Future work {#whats-left}
 
 - **Better error messages.** The error type is currently just `String`. The
   grade machinery is independent of the error representation, so swapping in
@@ -878,7 +961,8 @@ gdo
   `parsec`-style) is doable.
 - **Generic input type.** The input is currently fixed to `List.Vector Char n`.
   Generalising to an arbitrary sized type is straightforward.
-- **Expore monad transformers.**
+- **Expore monad transformers.** Perhaps it is possible to introduce an
+  underlying standard monad to the parser type.
 - **Split out graded monads.** The `GradedFunctor` / `GradedApplicative` / `GradedMonad`
   hierarchy and their lawful counterparts have nothing to do with parsers;
   they belong either in mathlib or in their own library.
