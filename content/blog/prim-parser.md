@@ -21,10 +21,10 @@ are proven as propositional equalities.
 
 # Introduction {#introduction}
 
-Monadic parser combinators are a popular tool in functional programming. A small
-set of higher-order functions and do-notation is enough to assemble parsers for
-complex grammars, and since parsers are ordinary values in the host language,
-you get its abstractions and familiar syntax.
+Monadic parser combinators are a popular tool in functional programming. With a
+small set of functions called combinators and a monadic interface, you can
+assemble parsers for complex grammars, and since parsers are ordinary values
+in the host language, you get its abstractions and familiar syntax.
 
 A typical example is parsing an identifier: a letter followed by alphanumeric
 characters:
@@ -36,8 +36,8 @@ def ident : Parser String := do
   return String.ofList (c :: cs)
 ```
 
-`many` is itself a recursive parser. The natural definition is something
-like:
+`many` is combinator that parses one or more occurrences of its argument. We
+could define it like this:
 
 ```lean
 def many (p : Parser α) : Parser (List α) := do
@@ -48,13 +48,13 @@ def many (p : Parser α) : Parser (List α) := do
 ```
 
 But the definition of `many` fails Lean's termination check because it calls
-itself on the same input, so there is no structurally decreasing argument. Two
-obvious options that may come to mind: bound the number of recursive calls, or
-mark the definition `partial` and skip the check (what
+itself on the same input (in the `some x` branch), so there is no structurally
+decreasing argument. Two obvious options that may come to mind: bound the number
+of recursive calls, or mark the definition `partial` and skip the check (what
 [lean4-parser](https://github.com/fgdorais/lean4-parser) does). Neither is
 satisfying. The first is too restrictive because there may not be a safe bound
 to pick. The second drops the totality guarantee (if `p` accepts the empty
-string, `many p` loops forever). A better solution comes enriching the type of
+string, `many p` loops forever). A better solution comes from enriching the type of
 the parser. In prim-parser, every parser carries a *grade* in its type (a pair
 tracking error and consumption behavior). Look at `many`'s signature:
 
@@ -79,9 +79,8 @@ The original library is in Agda but has been ported to Rocq
 ([parseque](https://github.com/rocq-community/parseque)) and Idris
 ([tparsec](https://github.com/gallais/idris-tparsec)). Earlier, [Danielsson
 2010](https://dl.acm.org/doi/10.1145/1863543.1863585) introduced the first total
-parser combinator library based on Brzozowski derivatives, but the approach has
-not seen practical adoption. I'll compare prim-parser to both in the [Related
-work](#related-work) section.
+parser combinator library based on Brzozowski derivatives. I'll compare
+prim-parser to both in the [Related work](#related-work) section.
 
 # Original contributions {#contributions}
 
@@ -91,12 +90,11 @@ To the best of my knowledge:
    use of graded monads in a parser combinator library. The grade tracks
    error and consumption necessity in the type.
 2. **First total monadic parsec-style parser combinator library (in any total
-   language).** Parsec-style means biased choice (try the left branch first;
-   fall back to the right if it fails) and a shallow embedding: a parser is
-   essentially a function from input to result, so recursive parsers are
-   represented as ordinary recursive definitions. agdarsec is total and
-   parsec-style but not monadic. Danielsson is total and monadic but uses
-   symmetric choice and a deep embedding via Brzozowski derivatives.
+   language).** Parsec-style means a shallow embedding: a parser is essentially
+   an ordinary function from input to result. agdarsec is total and uses a
+   shallow embedding but not monadic. Danielsson is total and monadic but uses a
+   deep embedding via Brzozowski derivatives, which is known to have exponential
+   complexity.
 3. **First total parser combinator library in Lean 4.** `lean4-parser` uses
    `partial`. agdarsec's approach could be ported but hasn't been.
    Danielsson's approach uses [sized types](https://agda.readthedocs.io/en/latest/language/sized-types.html) and mixed induction/coinduction,
