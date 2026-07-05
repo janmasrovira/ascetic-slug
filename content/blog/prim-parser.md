@@ -36,7 +36,7 @@ def ident : Parser String := do
   return String.ofList (c :: cs)
 ```
 
-`many` is combinator that parses one or more occurrences of its argument. We
+`many` is a combinator that parses zero or more occurrences of its argument. We
 could define it like this:
 
 ```lean
@@ -309,7 +309,7 @@ optional : Parser ⟨ge, gc⟩ α → Parser ⟨never, ge.complement ⊓ gc⟩ (
 ```
 
 `optional p` only consumes input when `p` succeeds. `ge.complement` flips the
-error grade to capture how often that happens. Thatis, `never` if `p` always
+error grade to capture how often that happens. That is, `never` if `p` always
 fails, `always` if `p` never fails. Taking the meet (`⊓`, min) with `gc` caps
 that by what `p` consumes when it succeeds.
 
@@ -387,7 +387,7 @@ def fix : ((self : Parser ⟨ge, always⟩ α) → Parser ⟨ge, always⟩ α) �
 ```
 
 The argument to `fix` is a function. This function must produce a parser that
-alwas consumes on success. For recursive calls, it uses the `self` argument
+always consumes on success. For recursive calls, it uses the `self` argument
 parser.
 
 Let's look at an example: a parser for a balanced parenthesis group (e.g. `()`,
@@ -503,7 +503,7 @@ We can apply `gcast` directly to the `gdo` block:
 </code></pre>
 
 `by simp` proves `g * g = g` by using a simp lemma included in the library.
-This is a very common pattern, so I included some syntax sygar that makes it more pleasant to read and write. It's called `grade_by` and it optionally comes at the end of a `gdo` block. The definition below is the same as the definition above:
+This is a very common pattern, so I included some syntax sugar that makes it more pleasant to read and write. It's called `grade_by` and it optionally comes at the end of a `gdo` block. The definition below is the same as the definition above:
 
 <pre><code>def twice (p : Parser ε g α) : Parser ε g α := gdo
   p
@@ -704,8 +704,8 @@ sense the two are essentially the same under the hood. The main differences are:
       chainl1 addOp factor)
   ```
 
-## [agdarsec](https://gitlab.com/gallais/agdarsec) {#agdarsec}
-To the best of my knowledge, [agdarsec](https://gitlab.com/gallais/agdarsec) and
+## [agdarsec](https://github.com/gallais/agdarsec) {#agdarsec}
+To the best of my knowledge, [agdarsec](https://github.com/gallais/agdarsec) and
 its ports [tparsec](https://github.com/gallais/idris-tparsec) (Idris) and
 [parseque](https://github.com/rocq-community/parseque) (Rocq) are the only
 implementations of a total parser combinator that have seen some practical
@@ -1003,7 +1003,7 @@ def sexp : Parser Error conditional SExp :=
   `parsec`-style) is doable.
 - **Generic input type.** The input is currently fixed to `List.Vector Char n`.
   Generalising to an arbitrary sized type is straightforward.
-- **Expore monad transformers.** Perhaps it is possible to introduce an
+- **Explore monad transformers.** Perhaps it is possible to introduce an
   underlying standard monad to the parser type.
 - **Split out graded monads.** The `GradedFunctor` / `GradedApplicative` / `GradedMonad`
   hierarchy and their lawful counterparts have nothing to do with parsers;
