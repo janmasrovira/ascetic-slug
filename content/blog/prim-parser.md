@@ -61,6 +61,9 @@ tracking error and consumption behavior). Look at `many`'s signature:
 <pre><code>def many (p : Parser ⟨ge, <span style="color: #1e6fcc; font-weight: bold">always</span>⟩ α) : Parser ⟨<span style="color: #c0392b; font-weight: bold">never</span>, <span style="color: #d97706; font-weight: bold">possibly</span>⟩ (List α)
 </code></pre>
 
+(The `Parser` type also takes an error-type parameter, which I omit until [The
+Parser type](#the-parser-type) section.)
+
 The left component tracks *errors*; the right tracks *consumption*. The key
 fact is the
 <span style="color: #1e6fcc; font-weight: bold">always</span> in `p`'s grade:
@@ -710,14 +713,6 @@ its ports [tparsec](https://github.com/gallais/idris-tparsec) (Idris) and
 [parseque](https://github.com/rocq-community/parseque) (Rocq) are the only
 implementations of a total parser combinator that have seen some practical
 adoption.
-
-TODO remove paragraph below
-
-Recursion is guarded by a modal operator `□`. The type `□ Parser` encapsulates a
-parser which can only be called on input strictly smaller than the input the
-enclosing parser was given. Recursive parsers are built with a `fix` combinator
-whose recursive handle is boxed in `□`. Full details can be found in the
-[agdarsec paper](https://gallais.github.io/pdf/agdarsec18.pdf).
 
 In agdarsec every parser must consume input to succeed. This means that
 non-consuming parsers cannot be defined. In particular, the `pure` parser
