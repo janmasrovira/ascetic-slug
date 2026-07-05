@@ -100,7 +100,7 @@ To the best of my knowledge:
    complexity.
 3. **First total parser combinator library in Lean 4.** `lean4-parser` uses
    `partial`. agdarsec's approach could be ported but hasn't been.
-   Danielsson's approach uses [sized types](https://agda.readthedocs.io/en/latest/language/sized-types.html) and mixed induction/coinduction,
+   Danielsson's approach uses mixed induction/coinduction,
    which Lean does not support.
 
 **The rest of the post.**
@@ -318,7 +318,7 @@ that by what `p` consumes when it succeeds.
 
 ---
 
-**`choice`** tries the first parser; on failure, the second. The error
+**`choice`**, written infix as `<|>`, tries the first parser; on failure, the second. The error
 grade is `ge ⊓ ge'` (the combined parser only always-fails if both
 branches do); the consumption grade uses a small helper `ite` that cases
 on the first branch's failure pattern:
@@ -517,13 +517,13 @@ This is a very common pattern, so I included some syntax sugar that makes it mor
 # Examples {#examples}
 
 This section presents two examples: S-expressions and CSV. The
-[`Examples/`](https://github.com/janmasrovira/prim-parser/tree/bc8b8fb/Examples)
+[`Examples/`](https://github.com/janmasrovira/prim-parser/tree/5a5ff0d/Examples)
 directory in the repo has a few more parsers in the same style: arithmetic
 expressions (with operator precedence), JSON, and the untyped lambda calculus.
 
 ## S-expressions {#sexp}
 
-[*Source: `Examples/SExp.lean`*](https://github.com/janmasrovira/prim-parser/blob/bc8b8fb/Examples/SExp.lean)
+[*Source: `Examples/SExp.lean`*](https://github.com/janmasrovira/prim-parser/blob/5a5ff0d/Examples/SExp.lean)
 
 Let's parse the usual Lispy syntax: alphanumeric atoms and parenthesised
 lists, e.g.
@@ -551,16 +551,15 @@ def sexp : Parser Error conditional SExp :=
     let plist : Parser Error conditional SExp := gdo
       lexeme (char '(')
       let first ← sexp_rec
-      let rest  ← many (gdo whitespace; sexp_rec)
+      let rest ← many (gdo whitespace; sexp_rec)
       lexeme (char ')')
       return listToPairs (first :: rest)
-      grade_by by simp
-    choice patom plist)
+    patom <|> plist)
 ```
 
 ## CSV {#csv}
 
-[*Source: `Examples/Csv.lean`*](https://github.com/janmasrovira/prim-parser/blob/bc8b8fb/Examples/Csv.lean)
+[*Source: `Examples/Csv.lean`*](https://github.com/janmasrovira/prim-parser/blob/5a5ff0d/Examples/Csv.lean)
 
 Let's parse a tiny subset of CSV: a header row of column names followed by
 data rows whose cells are integers or strings, e.g.
@@ -585,19 +584,19 @@ structure Table (n : Nat) where
 def row : Parser Error flexible (List String) :=
   sepBy comma field
 
-def exactRow (n : Nat) : Parser Error fallible (List.Vector Value n) :=
+private def exactRow (n : Nat) : Parser Error fallible (List.Vector Value n) :=
   sepByN comma cell n
 
 def table : Parser Error conditional ((n : Nat) × Table n) := gdo
   let headers ← row
   newline
-  let n      := headers.length
-  let rows   ← sepBy newline (exactRow n)
+  let n := headers.length
+  let rows ← sepBy newline (exactRow n)
   let t : Table n := { columns := ⟨headers, rfl⟩, rows }
-  return ⟨n, t⟩
+  return (⟨n, t⟩ : (n : Nat) × Table n)
 ```
 
-The [`Examples/`](https://github.com/janmasrovira/prim-parser/tree/bc8b8fb/Examples)
+The [`Examples/`](https://github.com/janmasrovira/prim-parser/tree/5a5ff0d/Examples)
 directory has a few more parsers in the same style: arithmetic expressions
 (with operator precedence), JSON, and the untyped lambda
 calculus.
@@ -721,7 +720,7 @@ a monad instance. As we will see in the [connectors](#connectors) section, this
 degrades usability considerably.
 
 Other parsers that cannot be defined in agdarsec include:
-- zero or more repetition: `many`, `skipMany`, `sepBy`, `manyTill`, etc.
+- zero or more repetition: `many`, `skipMany`, `sepBy`, etc.
 - `optional`.
 - `lookahead`, `notFollowedBy`.
 - `eof` (end of input), `getPosition`.
@@ -973,7 +972,7 @@ sexp = fix (Parser SExp) $ λ rec →
   in atom <|> sexp
 ```
 
-prim-parser ([`Examples/SExp.lean`](https://github.com/janmasrovira/prim-parser/blob/bc8b8fb/Examples/SExp.lean)):
+prim-parser ([`Examples/SExp.lean`](https://github.com/janmasrovira/prim-parser/blob/5a5ff0d/Examples/SExp.lean)):
 ```lean
 def patom : Parser Error conditional SExp :=
   .atom <$>ᵍ takeWhile1 (·.isAlphanum)
@@ -983,11 +982,10 @@ def sexp : Parser Error conditional SExp :=
     let plist : Parser Error conditional SExp := gdo
       lexeme (char '(')
       let first ← sexp_rec
-      let rest  ← many (gdo whitespace; sexp_rec)
+      let rest ← many (gdo whitespace; sexp_rec)
       lexeme (char ')')
       return listToPairs (first :: rest)
-      grade_by by simp
-    choice patom plist)
+    patom <|> plist)
 ```
 
 # Future work {#whats-left}
