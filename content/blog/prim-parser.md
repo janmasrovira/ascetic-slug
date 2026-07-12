@@ -1,5 +1,5 @@
 +++
-title = "Total parser combinators with graded monads"
+title = "prim-parser: Total parser combinator library using a graded monad"
 date = 2026-05-03
 
 [taxonomies]
