@@ -97,7 +97,7 @@ To the best of my knowledge:
    an ordinary function from input to result. agdarsec is total and uses a
    shallow embedding but not monadic. Danielsson is total and monadic but uses a
    deep embedding via Brzozowski derivatives, which is known to have exponential
-   complexity.
+   complexity. Moreover, biased choice is not supported by Danielsson.
 3. **First total parser combinator library in Lean 4.** `lean4-parser` uses
    `partial`. agdarsec's approach could be ported but hasn't been.
    Danielsson's approach uses mixed induction/coinduction,
@@ -189,7 +189,8 @@ combinators that a simpler grade could not.
 # Graded monad {#graded-monad}
 
 We just saw how grades multiply when parsers run in sequence. That's what
-`gbind` does, and `gpure` carries the unit grade. With `g g' : Grade`:
+`gbind` does; `gpure` has the unit grade. Let's look at the signatures, with `g,
+g' : Grade`:
 
 ```lean
 def gpure : α → Parser pure α  -- pure = ⟨never, never⟩, the monoid unit
@@ -211,8 +212,8 @@ graded monad with the trivial monoid is exactly the standard monad). No Lean
 library ships the graded hierarchy, so prim-parser provides `GradedFunctor`,
 `GradedApplicative`, `GradedMonad`, and their respective `Lawful*` variants
 itself. I've proved the functor, applicative, and monad laws for `Parser` as
-Lean theorems. With `i j k : Grade`, the two sides of each law carry different
-grade indices syntactically; they unify only after we prove the grade identity
+Lean theorems. With `i, j, k : Grade`, the two sides of each law carry different
+grade indices syntactically; to unify then we need prove the grade identity
 in the right column, and those identities follow from the monoid laws on
 `Grade`:
 
@@ -228,7 +229,7 @@ in the right column, and those identities follow from the monoid laws on
 
 This section is a tour of the common parser combinators you'd expect to find
 in any parser combinator library. For each, we'll look at the signature, describe the
-behaviour, and relate it back to the grade. By the end I hope you'll see
+behaviour, and relate it to the grade. By the end I hope you'll see
 that grades do more than enforce totality; they also help document the
 combinator's behaviour in the type. `fix`, the recursion combinator, has
 its [own section](#fix).
@@ -273,9 +274,9 @@ notFollowedBy : Parser ⟨ge, gc⟩ α → Parser ⟨ge.complement, never⟩ PUn
 `complement` is a `Necessity` operation defined by these equations:
 
 ```
-complement never    = always
+complement never = always
 complement possibly = possibly
-complement always   = never
+complement always = never
 ```
 
 If `p` always fails, `notFollowedBy p` never fails; if `p` never fails,
@@ -417,7 +418,7 @@ valid argument for `fix`.
 
 The parser type is parameterised by an error type `ε`, a grade `g`, and a result
 type `α`. Its single field `run` is like a parsec parser, but the input is sized
-so that consumption can be tracked in the type. `Text n` is `List.Vector Char
+so that consumption can be tracked in the type. `Text n` is short for `List.Vector Char
 n`.
 
 ```lean
@@ -627,14 +628,14 @@ sense the two are essentially the same under the hood. The main differences are:
   recursive definitions (`partial` lets Lean accept them without a termination
   proof). prim-parser uses an explicit guarded-recursion combinator
   [`fix`](#fix), whose type forces the recursive call to happen only after
-  consumption.
+  consumption, ensuring termination.
 - **Monad vs graded monad.** lean4-parser is a standard `Monad` (and a monad
-  transformer, so it can run on top of `State`, etc.) and works with the
+  transformer, so it can run on top of `StateT`, etc.) and works with the
   built-in `do` notation. prim-parser is a *graded* monad. Instead, it uses a
   [`gdo`](#gdo) notation that works for any graded monad.
 - **Stream type.** lean4-parser is generic in the input stream; prim-parser
   currently only supports `List.Vector Char n`, but it could easily be
-  generalised to any type that has its length in the type.
+  generalised to any stream type indexed by its length.
 
 ## [Danielsson 2010](https://dl.acm.org/doi/10.1145/1863543.1863585) {#danielsson}
 
@@ -646,8 +647,10 @@ sense the two are essentially the same under the hood. The main differences are:
   because coinduction appears in `bind`'s argument types.
 - **Implementation**. Danielsson uses a deep embedding based on Brzozowski
   derivatives: a parser is a data structure that is differentiated one token at
-  a time, and running it returns all successful parses. prim-parser is a
-  shallow embedding (a function from input to output).
+  a time, and running it returns all successful parses. Consequently, does not
+  support biased choice. prim-parser is a shallow embedding (a function from
+  input to output). Supports biased choice and all the usual combinators in
+  parsec-style libraries.
 
   Danielsson needs the language to support mixed induction and
   coinduction. Thus, it cannot be ported to Lean.
@@ -728,9 +731,9 @@ Other parsers that cannot be defined in agdarsec include:
 ### agdarsec connectors vs prim-parser's `gdo` notation {#connectors}
 
 The lack of a monadic interface forces agdarsec to provide a big collection of
-connectors to work around the limitation. These connectors add no meaning to the
-parser, and the user must remember all of them (use of mnemonic names makes it a
-bit simpler, but still non-trivial).
+connectors to work around the limitation. These connectors add no essential
+meaning to the parser, and the user must remember all of them (use of mnemonic
+names makes it a bit simpler, but still, in my opinion, unpleasant).
 
 Below I list most of agdarsec's connectors, each paired with its prim-parser
 `gdo` equivalent. Although `gdo` is more verbose and needs explicit local
@@ -936,6 +939,7 @@ prim-parser:
 ```lean
 (Sum.inl <$>ᵍ p) <|> (Sum.inr <$>ᵍ q)
 ```
+Here `<$>ᵍ` means `gmap`, the equivalent of `map` for graded monads.
 
 ---
 
