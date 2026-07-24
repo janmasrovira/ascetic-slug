@@ -418,8 +418,8 @@ valid argument for `fix`.
 
 The parser type is parameterised by an error type `ε`, a grade `g`, and a result
 type `α`. Its single field `run` is like a parsec parser, but the input is sized
-so that consumption can be tracked in the type. `Text n` is short for `List.Vector Char
-n`.
+so that consumption can be tracked in the type. `Text n` is a wrapper around a
+`ByteArray` with the byte length in its type.
 
 ```lean
 structure Parser (ε : Type) (g : Grade) (α : Type) where
@@ -634,8 +634,7 @@ sense the two are essentially the same under the hood. The main differences are:
   built-in `do` notation. prim-parser is a *graded* monad. Instead, it uses a
   [`gdo`](#gdo) notation that works for any graded monad.
 - **Stream type.** lean4-parser is generic in the input stream; prim-parser
-  currently only supports `List.Vector Char n`, but it could easily be
-  generalised to any stream type indexed by its length.
+  currently only supports its own `Text n`.
 
 ## [Danielsson 2010](https://dl.acm.org/doi/10.1145/1863543.1863585) {#danielsson}
 
@@ -998,8 +997,6 @@ def sexp : Parser Error conditional SExp :=
   grade machinery is independent of the error representation, so swapping in
   a richer diagnostic ADT (with source positions and labelled expectations,
   `parsec`-style) is doable.
-- **Generic input type.** The input is currently fixed to `List.Vector Char n`.
-  Generalising to an arbitrary sized type is straightforward.
 - **Explore monad transformers.** Perhaps it is possible to introduce an
   underlying standard monad to the parser type.
 - **Split out graded monads.** The `GradedFunctor` / `GradedApplicative` / `GradedMonad`
