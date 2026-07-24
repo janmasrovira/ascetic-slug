@@ -518,13 +518,13 @@ This is a very common pattern, so I included some syntax sugar that makes it mor
 # Examples {#examples}
 
 This section presents two examples: S-expressions and CSV. The
-[`Examples/`](https://github.com/janmasrovira/prim-parser/tree/5a5ff0d/Examples)
+[`Examples/`](https://github.com/janmasrovira/prim-parser/tree/blog-v1/Examples)
 directory in the repo has a few more parsers in the same style: arithmetic
 expressions (with operator precedence), JSON, and the untyped lambda calculus.
 
 ## S-expressions {#sexp}
 
-[*Source: `Examples/SExp.lean`*](https://github.com/janmasrovira/prim-parser/blob/5a5ff0d/Examples/SExp.lean)
+[*Source: `Examples/SExp.lean`*](https://github.com/janmasrovira/prim-parser/blob/blog-v1/Examples/SExp.lean)
 
 Let's parse the usual Lispy syntax: alphanumeric atoms and parenthesised
 lists, e.g.
@@ -560,7 +560,7 @@ def sexp : Parser Error conditional SExp :=
 
 ## CSV {#csv}
 
-[*Source: `Examples/Csv.lean`*](https://github.com/janmasrovira/prim-parser/blob/5a5ff0d/Examples/Csv.lean)
+[*Source: `Examples/Csv.lean`*](https://github.com/janmasrovira/prim-parser/blob/blog-v1/Examples/Csv.lean)
 
 Let's parse a tiny subset of CSV: a header row of column names followed by
 data rows whose cells are integers or strings, e.g.
@@ -597,7 +597,7 @@ def table : Parser Error conditional ((n : Nat) × Table n) := gdo
   return (⟨n, t⟩ : (n : Nat) × Table n)
 ```
 
-The [`Examples/`](https://github.com/janmasrovira/prim-parser/tree/5a5ff0d/Examples)
+The [`Examples/`](https://github.com/janmasrovira/prim-parser/tree/blog-v1/Examples)
 directory has a few more parsers in the same style: arithmetic expressions
 (with operator precedence), JSON, and the untyped lambda
 calculus.
@@ -975,7 +975,7 @@ sexp = fix (Parser SExp) $ λ rec →
   in atom <|> sexp
 ```
 
-prim-parser ([`Examples/SExp.lean`](https://github.com/janmasrovira/prim-parser/blob/5a5ff0d/Examples/SExp.lean)):
+prim-parser ([`Examples/SExp.lean`](https://github.com/janmasrovira/prim-parser/blob/blog-v1/Examples/SExp.lean)):
 ```lean
 def patom : Parser Error conditional SExp :=
   .atom <$>ᵍ takeWhile1 (·.isAlphanum)
