@@ -64,16 +64,18 @@ tracking error and consumption behavior). Look at `many`'s signature:
 (The `Parser` type also takes an error-type parameter, which I omit until [The
 Parser type](#the-parser-type) section.)
 
-The left component tracks *errors*; the right tracks *consumption*. The key
-fact is the
-<span style="color: #1e6fcc; font-weight: bold">always</span> in `p`'s grade:
-`p` is guaranteed to consume input on every success, and that is what makes
-the recursion safe. The `ge` on the left is unconstrained. The result grade
+The first argument of `Parser` is the grade, written `⟨error, consumption⟩`: the
+left component says how often the parser fails, the right how often it consumes
+input. What makes the recursion safe is the
+<span style="color: #1e6fcc; font-weight: bold">always</span> on the right of
+`p`'s grade. It means `p` consumes input whenever it succeeds, so every
+iteration of `many` starts on a strictly shorter input. The `ge` on the left is
+unconstrained, so `p` is free to fail or not. The result grade
 ⟨<span style="color: #c0392b; font-weight: bold">never</span>,
 <span style="color: #d97706; font-weight: bold">possibly</span>⟩
-says `many p` itself never fails and may or may not consume input. Each parser
-type carries a *grade* of this kind, and the Parser type is a *graded monad*
-over these grades.
+says that `many p` itself never fails, and may or may not consume input. Grades
+multiply when parsers run in sequence, which is what makes `Parser` a *graded
+monad*.
 
 To the best of my knowledge, the only practical implementation of a total parser
 combinator library is [agdarsec](https://github.com/gallais/agdarsec), by
