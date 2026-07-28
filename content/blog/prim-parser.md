@@ -66,11 +66,14 @@ Parser type](#the-parser-type) section.)
 
 The first argument of `Parser` is the grade, written `⟨error, consumption⟩`: the
 left component says how often the parser fails, the right how often it consumes
-input. What makes the recursion safe is the
-<span style="color: #1e6fcc; font-weight: bold">always</span> on the right of
-`p`'s grade. It means `p` consumes input whenever it succeeds, so every
-iteration of `many` starts on a strictly shorter input. The `ge` on the left is
-unconstrained, so `p` is free to fail or not. The result grade
+input. The `ge` on the left is unconstrained, so `p` is free to fail or not. The
+<span style="color: #1e6fcc; font-weight: bold">always</span> on the right is
+what makes `many` total: a parser graded
+<span style="color: #1e6fcc; font-weight: bold">always</span> hands back a proof
+that the leftover input is strictly shorter, so `many` recurses on the input
+length rather than on structure (see [The Parser type](#the-parser-type)).
+Recursive parsers you write yourself go through the [`fix`](#fix) combinator,
+which asks for the same guarantee. The result grade
 ⟨<span style="color: #c0392b; font-weight: bold">never</span>,
 <span style="color: #d97706; font-weight: bold">possibly</span>⟩
 says that `many p` itself never fails, and may or may not consume input. Grades
@@ -415,6 +418,12 @@ second parser `many self` possibly consumes (because `many` accepts zero
 occurrences), the third parser `char ')'` always consumes. It obviously follows
 that the sequence of the parsers is always consuming and thus we've provided a
 valid argument for `fix`.
+
+`fix` always terminates because it recurses on the *length* of the input. The
+`self` it passes to the body only runs on strictly shorter input, and the body's
+<span style="color: #1e6fcc; font-weight: bold">always</span> grade guarantees
+something is consumed before `self` is reached, so every unfolding shrinks the
+input.
 
 # The Parser type {#the-parser-type}
 
