@@ -441,8 +441,8 @@ structure Parser (ε : Type) (g : Grade) (α : Type) where
   sound : ∀ {n} (t : Text n), Outcome.Sound g.errors (run t)
 ```
 
-[Outcome](#outcome) is what `run` returns, [Sound](#sound) ties it to the error
-grade, and [`runParser`](#run-parser) is the entry point for running a parser.
+I'll go over [Outcome](#outcome) and [Sound](#sound) below, then
+[`runParser`](#run-parser).
 
 ## Outcome {#outcome}
 
