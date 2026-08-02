@@ -428,55 +428,98 @@ input.
 # The Parser type {#the-parser-type}
 
 The parser type is parameterised by an error type `ε`, a grade `g`, and a result
-type `α`. Its single field `run` is like a parsec parser, but the input is sized
-so that consumption can be tracked in the type. `Text n` is a wrapper around a
-`ByteArray` with the byte length in its type.
+type `α`. The `run` field is like a traditional parsec-style parser. `Text n` is a
+byte array with `n` bytes left to read.
 
 ```lean
 structure Parser (ε : Type) (g : Grade) (α : Type) where
-    run : ∀ {n}, Text n → Outcome ε n g α
+  run : ∀ {n}, Text n → Outcome ε n g.consumes α
+  sound : ∀ {n} (t : Text n), Outcome.Sound g.errors (run t)
 ```
 
-The result type `Outcome` is computed from the error component of the grade:
+[Outcome](#outcome) is what `run` returns, [Sound](#sound) ties it to the error
+grade, and [`runParser`](#run-parser) is the entry point for running a parser.
+
+## Outcome {#outcome}
+
+An `Outcome` is either a `Failure` or a `Success`:
+
 ```lean
-abbrev Outcome (ε : Type) (n : Nat) (g : Grade) (α : Type) :=
-  match g.errors with
-  | never    => Success n g.consumes α
-  | possibly => Failure n ε ⊕ Success n g.consumes α
-  | always   => Failure n ε
+inductive Outcome (ε : Type) (n : Nat) (consumes : Necessity) (α : Type) where
+  | failure (f : Failure n ε)
+  | success (r : Success n consumes α)
+
+structure Failure (n : Nat) (ε : Type) where
+  error : ε
+  restSize : Nat
+  witness : restSize ≤ n
 ```
 
-Both non-error branches return a `Success`, which bundles the parsed value,
-the leftover input, and a *consumption witness*:
+A `Success` is a record with the parsed value, the number of unread bytes, and a
+*consumption witness* relating the input length `n` to the remaining length
+`restSize`:
 
 ```lean
 structure Success (n : Nat) (consumes : Necessity) (α : Type) where
-  result   : α
-  {restSize : Nat}
-  restText : Text restSize
-  witness  : consumptionWitness restSize n consumes
+  result : α
+  restSize : Nat
+  witness : consumptionWitness restSize n consumes
 ```
-
-The witness relates the input length `n` to the remaining input length `restSize`:
 
 ```lean
 abbrev consumptionWitness (rest n : Nat) : Necessity → Prop
-  | never    => rest = n
+  | never => rest = n
   | possibly => rest ≤ n
-  | always   => rest < n
+  | always => rest < n
 ```
 
 The `< n` case for `consumes = always` is what enables the termination proof for
 the `fix` combinator.
 
-The error branches return a `Failure`:
+A `Failure` is a record with the error, the number of unread bytes, and a proof
+that the remaining input did not increase.
 
 ```lean
 structure Failure (n : Nat) (ε : Type) where
-  error    : ε
-  {restSize : Nat}
-  restText : Text restSize
-  witness  : restSize ≤ n
+  error : ε
+  restSize : Nat
+  witness : restSize ≤ n
+```
+
+## Sound {#sound}
+
+Every parser must respect this soundness property, which relates the error
+component of its grade to the outcome of its `run` function.
+
+```lean
+abbrev Outcome.Sound (errors : Necessity) (o : Outcome ε n c α) : Prop :=
+  match o with
+  | failure _ => possibly ≤ errors
+  | success _ => errors ≤ possibly
+```
+
+Returning a `failure` requires the error grade to be at least `possibly`, and
+returning a `success` requires it to be at most `possibly`. So a parser graded
+`never` can never fail, and one graded `always` can never succeed.
+
+## User-facing run function {#run-parser}
+
+The user facing run function is called `runParser` and it has the usual signature:
+```lean
+def runParser (p : Parser ε g α) (s : String) : Except ε α
+```
+
+There is an analogous soundness property for `Except`, which `runParser`
+preserves.
+
+```lean
+abbrev Except.Sound (errors : Necessity) (r : Except ε α) : Prop :=
+  match r with
+  | .error _ => possibly ≤ errors
+  | .ok _ => errors ≤ possibly
+
+theorem runParser_sound (p : Parser ε g α) (s : String)
+  : Except.Sound g.errors (p.runParser s)
 ```
 
 # The `gdo` macro {#gdo}
