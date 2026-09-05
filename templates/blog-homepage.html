@@ -8,7 +8,7 @@
         <main class="list">
             {% set blog = get_section(path="blog/_index.md") %}
             {% set show_pages = blog.pages %}
-            {{ post_macros::list_posts(pages=show_pages) }}
+            {{ <post_macros.list_posts pages={show_pages} /> }}
         </main>
     {% endblock post_list %}
 

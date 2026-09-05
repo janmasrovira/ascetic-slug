@@ -1,5 +1,5 @@
 +++
-template = "ascetic-slug.html"
+template = "blog-homepage.html"
 +++
 
 # About
